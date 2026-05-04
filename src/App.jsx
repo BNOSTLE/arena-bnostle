@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 // ════════════════════════════════════════════════════════════
 // ARENA BNOSTLE — KOF 2002/UM — v0.5
-// + Versões separadas (2002 GGPOZ / UM Steam)
+// + Versões separadas (2002 Clássica / UM Steam)
 // + Login simulado com Google/Discord/Twitch
 // + Admin único, lutadores só editam perfil
 // ════════════════════════════════════════════════════════════
@@ -40,7 +40,7 @@ const FONTS = {
 
 // ─── VERSÕES DO JOGO ────────────────────────────────────────
 const VERSIONS = {
-  '2002': { id: '2002', label: '2002', subtitle: 'GGPOZ', color: C.red,  fullLabel: 'KOF 2002 (GGPOZ)' },
+  '2002': { id: '2002', label: '2002', subtitle: 'Clássica', color: C.red,  fullLabel: 'KOF 2002 (Clássica)' },
   'um':   { id: 'um',   label: 'UM',   subtitle: 'Steam', color: C.cyan, fullLabel: 'KOF 2002 UM (Steam)' },
 };
 const VERSION_IDS = ['2002', 'um'];
@@ -425,7 +425,7 @@ function RankLegend({ compact = false, currentElo = null }) {
   return (
     <Panel title="LEGENDA DE RANKS · NÍVEIS POSSÍVEIS" accent={C.purple}>
       <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>
-        Inspirados no sistema de Solo Leveling, os ranks vão de <strong style={{ color: '#6B7280' }}>E</strong> (iniciante) até <strong style={{ color: '#A855F7' }}>Monarch</strong> (lendário). Cada rank tem um ELO mínimo. Você ganha ELO vencendo lutas e perde quando é derrotado — quanto mais forte o oponente, mais ELO está em jogo. Os rankings de <strong style={{ color: C.red }}>2002 (GGPOZ)</strong> e <strong style={{ color: C.cyan }}>UM (Steam)</strong> são <strong>independentes</strong>: você pode ser S-Rank no 2002 e B-Rank no UM, por exemplo.
+        Inspirados no sistema de Solo Leveling, os ranks vão de <strong style={{ color: '#6B7280' }}>E</strong> (iniciante) até <strong style={{ color: '#A855F7' }}>Monarch</strong> (lendário). Cada rank tem um ELO mínimo. Você ganha ELO vencendo lutas e perde quando é derrotado — quanto mais forte o oponente, mais ELO está em jogo. Os rankings de <strong style={{ color: C.red }}>2002 (Clássica)</strong> e <strong style={{ color: C.cyan }}>UM (Steam)</strong> são <strong>independentes</strong>: você pode ser S-Rank no 2002 e B-Rank no UM, por exemplo.
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: C.border }}>
         {RANKS.filter((r) => !r.secret).map((r, i, arr) => {
@@ -2326,7 +2326,7 @@ function Footer({ onDonate }) {
   return (
     <div style={{ borderTop: `1px solid ${C.border}`, padding: '20px 24px', marginTop: 40 }}>
       <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.dim, letterSpacing: '0.15em' }}>// ARENA BNOSTLE · KOF 2002/UM · GGPOZ + STEAM</span>
+        <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.dim, letterSpacing: '0.15em' }}>// ARENA BNOSTLE · KOF 2002/UM · LIGA OFICIAL</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {PIX_CONFIG.enabled && onDonate && (
             <button onClick={onDonate}
