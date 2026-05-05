@@ -38,6 +38,21 @@ const FONTS = {
   mono: '"JetBrains Mono", "SF Mono", Menlo, monospace',
 };
 
+// ─── RESPONSIVIDADE ─────────────────────────────────────────
+const BREAKPOINTS = { mobile: 600, tablet: 900 };
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < BREAKPOINTS.mobile : false
+  );
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < BREAKPOINTS.mobile);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return isMobile;
+}
+
 // ─── VERSÕES DO JOGO ────────────────────────────────────────
 const VERSIONS = {
   '2002': { id: '2002', label: '2002', subtitle: 'Clássica', color: C.red,  fullLabel: 'KOF 2002 (Clássica)' },
@@ -90,6 +105,18 @@ function nextRankInfo(elo) {
   // Monarch parece ser o teto.
   const next = RANKS.find((r) => r.min > elo && !r.secret);
   return { current: cur, next: next || null, gap: next ? next.min - elo : 0 };
+}
+
+// ─── MODERAÇÃO ──────────────────────────────────────────────
+// Helpers pra filtrar lutadores em listas públicas (ranking, agenda, etc).
+// Banidos nunca aparecem em listas públicas, mas SUAS LUTAS PASSADAS continuam
+// no histórico de quem lutou contra eles (com a tag BANIDO).
+function isPublic(p) {
+  return p && p.id !== 'admin' && !p.isBanned && !p.isDeleted;
+}
+function isCompetitor(p) {
+  // Lutadores que aparecem em listas públicas E podem ser agendados pra novos duelos
+  return isPublic(p);
 }
 
 // ─── ELO ENGINE (por versão!) ───────────────────────────────
@@ -482,11 +509,18 @@ function rankFlavor(id) {
 
 function HunterCompact({ p, rank, won, dim, onClick }) {
   if (!p) return <span style={{ color: C.dim }}>—</span>;
+  const isDeleted = p.isDeleted;
+  const isBanned = p.isBanned && !isDeleted;
+  const clickable = onClick && !isDeleted; // perfil deletado não é clicável
   return (
-    <span onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, opacity: dim ? 0.5 : 1, cursor: onClick ? 'pointer' : 'default' }}>
+    <span onClick={clickable ? onClick : null} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, opacity: dim ? 0.5 : 1, cursor: clickable ? 'pointer' : 'default' }}>
       <span style={{ width: 18, height: 18, border: `1.5px solid ${rank.color}`, color: rank.glow ? '#0A0A0A' : rank.color, background: rank.glow ? rank.color : 'transparent', fontFamily: FONTS.display, fontSize: 11, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{rank.id}</span>
-      <span style={{ fontFamily: FONTS.display, color: won ? C.amber : C.text, fontSize: 16, letterSpacing: '0.05em' }}>{p.tag}</span>
-      {won && <span style={{ color: C.amber, fontSize: 11 }}>★</span>}
+      <span style={{ fontFamily: FONTS.display, color: isDeleted ? C.dim : (won ? C.amber : C.text), fontSize: 16, letterSpacing: '0.05em', textDecoration: (isBanned || isDeleted) ? 'line-through' : 'none', fontStyle: isDeleted ? 'italic' : 'normal' }}>
+        {isDeleted ? '(perfil deletado)' : p.tag}
+      </span>
+      {isDeleted && <span style={{ fontFamily: FONTS.mono, fontSize: 9, color: C.dim, border: `1px solid ${C.dim}`, padding: '1px 5px', letterSpacing: '0.15em' }}>DELETADO</span>}
+      {isBanned && <span style={{ fontFamily: FONTS.mono, fontSize: 9, color: C.red, border: `1px solid ${C.red}`, padding: '1px 5px', letterSpacing: '0.15em' }}>BANIDO</span>}
+      {won && !isDeleted && <span style={{ color: C.amber, fontSize: 11 }}>★</span>}
     </span>
   );
 }
@@ -498,7 +532,7 @@ function LoginScreen({ players, onLogin, onLoginAsAdmin }) {
   const [showDemo, setShowDemo] = useState(false);
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, fontFamily: FONTS.body, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, fontFamily: FONTS.body, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(12px, 3vw, 24px)', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0, backgroundImage: `repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 3px)`, pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', top: '20%', right: '-10%', width: 600, height: 600, background: `radial-gradient(circle, ${C.redDim} 0%, transparent 60%)`, opacity: 0.5, pointerEvents: 'none' }} />
 
@@ -549,7 +583,7 @@ function LoginScreen({ players, onLogin, onLoginAsAdmin }) {
                   style={{ background: C.purple, color: '#fff', border: 'none', padding: '10px 14px', cursor: 'pointer', fontFamily: FONTS.display, fontSize: 13, letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start' }}>
                   <span>⚡</span> ADMIN (BNOSTLE)
                 </button>
-                {players.filter((p) => p.id !== 'admin').map((p) => (
+                {players.filter(isCompetitor).map((p) => (
                   <button key={p.id} onClick={() => onLogin(p.authProvider, p)}
                     style={{ background: 'transparent', color: C.text, border: `1px solid ${C.border}`, padding: '8px 14px', cursor: 'pointer', fontFamily: FONTS.body, fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-start' }}>
                     <Avatar player={p} size={24} />
@@ -641,7 +675,7 @@ function PixDonationModal({ onClose }) {
         maxHeight: '90vh', overflowY: 'auto',
       }}>
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+        <div style={{ padding: 'clamp(14px, 4vw, 20px) clamp(16px, 4vw, 24px)', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
           <div>
             <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.green, letterSpacing: '0.2em', marginBottom: 4 }}>💚 APOIE A ARENA</div>
             <h3 style={{ fontFamily: FONTS.display, fontSize: 26, letterSpacing: '0.05em', margin: 0, color: C.text, lineHeight: 1 }}>
@@ -652,7 +686,7 @@ function PixDonationModal({ onClose }) {
         </div>
 
         {/* Conteúdo */}
-        <div style={{ padding: 24 }}>
+        <div style={{ padding: 'clamp(16px, 4vw, 24px)' }}>
           <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 20, textAlign: 'center' }}>
             A ARENA BNOSTLE é <strong style={{ color: C.text }}>100% gratuita</strong> e sempre vai ser. Se você curte o projeto e quer ajudar a mantê-lo no ar, qualquer valor é muito bem-vindo. 🥊
           </div>
@@ -789,7 +823,10 @@ function ArchitectRevealModal({ architect, version, onClose }) {
 }
 
 function LivestreamPopup({ match, playerById, onClose, onMaximize }) {
-  const initialPos = useMemo(() => typeof window === 'undefined' ? { x: 20, y: 20 } : { x: window.innerWidth - 400, y: window.innerHeight - 280 }, []);
+  const isMobile = useIsMobile();
+  const popupWidth = isMobile ? Math.min(window.innerWidth - 24, 320) : 360;
+  const popupHeight = isMobile ? 220 : 280;
+  const initialPos = useMemo(() => typeof window === 'undefined' ? { x: 20, y: 20 } : { x: window.innerWidth - popupWidth - 16, y: window.innerHeight - popupHeight - 16 }, [popupWidth, popupHeight]);
   const [minimized, setMinimized] = useState(false);
   const { pos, dragHandlers } = useDrag(initialPos);
   const p1 = playerById[match.player1Id], p2 = playerById[match.player2Id];
@@ -797,8 +834,8 @@ function LivestreamPopup({ match, playerById, onClose, onMaximize }) {
   const platform = streamPlatform(match.streamUrl);
   const v = VERSIONS[match.version];
 
-  const width = minimized ? 280 : 360;
-  const height = minimized ? 56 : 280;
+  const width = minimized ? (isMobile ? 240 : 280) : popupWidth;
+  const height = minimized ? 56 : popupHeight;
 
   return (
     <div style={{ position: 'fixed', left: pos.x, top: pos.y, width, height, background: C.bg, border: `1px solid ${C.red}`, boxShadow: `0 20px 60px rgba(0,0,0,0.6), 0 0 30px ${C.red}33`, zIndex: 9999, display: 'flex', flexDirection: 'column', animation: 'kof-slide-in 0.3s ease-out' }}>
@@ -905,7 +942,7 @@ function ShareModal({ url, title, onClose }) {
   ];
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: C.elevated, border: `1px solid ${C.border}`, padding: 24, maxWidth: 460, width: '100%' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.elevated, border: `1px solid ${C.border}`, padding: 'clamp(16px, 4vw, 24px)', maxWidth: 460, width: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <h3 style={{ fontFamily: FONTS.display, fontSize: 22, letterSpacing: '0.05em', margin: 0, color: C.text }}>COMPARTILHAR</h3>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>×</button>
@@ -928,76 +965,90 @@ function ShareModal({ url, title, onClose }) {
 // HEADER
 // ═══════════════════════════════════════════════════════════
 function Header({ playerCount, matchCount, liveCount, currentUser, onLogout, onProfile, onLogin, onDonate }) {
+  const isMobile = useIsMobile();
   return (
     <div style={{ borderBottom: `1px solid ${C.border}`, background: C.bg, position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0, backgroundImage: `repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 3px)`, pointerEvents: 'none' }} />
-      <div style={{ padding: '24px 28px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 20, position: 'relative' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 4, flexWrap: 'wrap' }}>
-            <span style={{ width: 28, height: 28, background: C.red, transform: 'rotate(45deg)' }} />
-            <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.muted, letterSpacing: '0.2em' }}>// ARENA BNOSTLE · LIGA OFICIAL</span>
+      <div style={{ padding: isMobile ? '16px 14px 12px' : '24px 28px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: isMobile ? 12 : 20, position: 'relative' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, marginBottom: 4, flexWrap: 'wrap' }}>
+            <span style={{ width: isMobile ? 20 : 28, height: isMobile ? 20 : 28, background: C.red, transform: 'rotate(45deg)', flexShrink: 0 }} />
+            <span style={{ fontFamily: FONTS.mono, fontSize: isMobile ? 9 : 11, color: C.muted, letterSpacing: isMobile ? '0.1em' : '0.2em' }}>// ARENA BNOSTLE · LIGA OFICIAL</span>
             {liveCount > 0 && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 10, color: '#fff', background: C.red, padding: '3px 8px', letterSpacing: '0.15em' }}>
                 <span style={{ width: 6, height: 6, background: '#fff', borderRadius: '50%', animation: 'kof-pulse 1s infinite' }} />{liveCount} AO VIVO
               </span>
             )}
           </div>
-          <h1 style={{ fontFamily: FONTS.display, fontSize: 'clamp(40px, 7vw, 76px)', letterSpacing: '0.02em', lineHeight: 0.9, margin: 0, color: C.text }}>
+          <h1 style={{ fontFamily: FONTS.display, fontSize: isMobile ? 'clamp(28px, 9vw, 44px)' : 'clamp(40px, 7vw, 76px)', letterSpacing: '0.02em', lineHeight: 0.9, margin: 0, color: C.text, wordBreak: 'break-word' }}>
             KING OF FIGHTERS <span style={{ color: C.red }}>2002/UM</span>
           </h1>
-          <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 8, letterSpacing: '0.04em' }}>
-            agenda · transmissões · rankings elo separados (2002 · um) · campeonato anual
-          </div>
+          {!isMobile && (
+            <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 8, letterSpacing: '0.04em' }}>
+              agenda · transmissões · rankings elo separados (2002 · um) · campeonato anual
+            </div>
+          )}
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 16, fontFamily: FONTS.mono, fontSize: 12 }}>
-            <Stat label="LUTADORES" value={String(playerCount).padStart(3, '0')} />
-            <Stat label="DUELOS" value={String(matchCount).padStart(3, '0')} />
-          </div>
+        <div style={{ display: 'flex', gap: isMobile ? 8 : 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          {!isMobile && (
+            <div style={{ display: 'flex', gap: 16, fontFamily: FONTS.mono, fontSize: 12 }}>
+              <Stat label="LUTADORES" value={String(playerCount).padStart(3, '0')} />
+              <Stat label="DUELOS" value={String(matchCount).padStart(3, '0')} />
+            </div>
+          )}
           {PIX_CONFIG.enabled && (
             <button onClick={onDonate}
               style={{
                 background: 'transparent', border: `1px solid ${C.green}`, color: C.green,
-                padding: '6px 12px', cursor: 'pointer', fontFamily: FONTS.display,
-                fontSize: 13, letterSpacing: '0.1em', display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: isMobile ? '5px 10px' : '6px 12px', cursor: 'pointer', fontFamily: FONTS.display,
+                fontSize: isMobile ? 11 : 13, letterSpacing: '0.1em', display: 'inline-flex', alignItems: 'center', gap: 6,
                 transition: 'all 0.12s',
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = C.green; e.currentTarget.style.color = '#0A0A0A'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.green; }}>
-              💚 APOIAR
+              💚 {isMobile ? '' : 'APOIAR'}
             </button>
           )}
           {currentUser ? (
-            <UserMenu user={currentUser} onLogout={onLogout} onProfile={onProfile} />
+            <UserMenu user={currentUser} onLogout={onLogout} onProfile={onProfile} compact={isMobile} />
           ) : (
             <Btn variant="primary" size="sm" onClick={onLogin}>ENTRAR</Btn>
           )}
         </div>
+        {isMobile && (
+          <div style={{ display: 'flex', gap: 16, fontFamily: FONTS.mono, fontSize: 11, width: '100%' }}>
+            <Stat label="LUTADORES" value={String(playerCount).padStart(3, '0')} />
+            <Stat label="DUELOS" value={String(matchCount).padStart(3, '0')} />
+          </div>
+        )}
       </div>
     </div>
   );
 }
 function Stat({ label, value, accent }) {
   return (
-    <div style={{ borderLeft: `2px solid ${accent || C.border}`, paddingLeft: 12 }}>
+    <div style={{ borderLeft: `2px solid ${accent || C.border}`, paddingLeft: 12, flexShrink: 0 }}>
       <div style={{ color: C.muted, fontSize: 10, letterSpacing: '0.15em' }}>{label}</div>
       <div style={{ color: accent || C.text, fontSize: 18, fontFamily: FONTS.display, letterSpacing: '0.05em', marginTop: 2 }}>{value}</div>
     </div>
   );
 }
-function UserMenu({ user, onLogout, onProfile }) {
+function UserMenu({ user, onLogout, onProfile, compact }) {
   const [open, setOpen] = useState(false);
   return (
     <div style={{ position: 'relative' }}>
       <button onClick={() => setOpen((v) => !v)}
-        style={{ background: C.elevated, border: `1px solid ${user.isAdmin ? C.purple : C.border}`, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', color: C.text }}>
-        <Avatar player={user} size={28} />
-        <div style={{ textAlign: 'left' }}>
-          <div style={{ fontFamily: FONTS.display, fontSize: 14, color: user.isAdmin ? C.purple : C.amber, letterSpacing: '0.05em', lineHeight: 1 }}>
-            {user.tag}{user.isAdmin && ' ⚡'}
+        style={{ background: C.elevated, border: `1px solid ${user.isAdmin ? C.purple : C.border}`, padding: compact ? '4px 8px' : '6px 12px', display: 'flex', alignItems: 'center', gap: compact ? 6 : 10, cursor: 'pointer', color: C.text }}>
+        <Avatar player={user} size={compact ? 24 : 28} />
+        {!compact && (
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontFamily: FONTS.display, fontSize: 14, color: user.isAdmin ? C.purple : C.amber, letterSpacing: '0.05em', lineHeight: 1 }}>
+              {user.tag}{user.isAdmin && ' ⚡'}
+            </div>
+            <div style={{ fontFamily: FONTS.mono, fontSize: 9, color: C.muted, letterSpacing: '0.1em' }}>{user.isAdmin ? 'ADMIN' : 'LUTADOR'}</div>
           </div>
-          <div style={{ fontFamily: FONTS.mono, fontSize: 9, color: C.muted, letterSpacing: '0.1em' }}>{user.isAdmin ? 'ADMIN' : 'LUTADOR'}</div>
-        </div>
+        )}
+        {compact && user.isAdmin && <span style={{ color: C.purple, fontSize: 12 }}>⚡</span>}
         <span style={{ color: C.muted, fontSize: 10 }}>▾</span>
       </button>
       {open && (
@@ -1036,18 +1087,19 @@ function tabsForUser(user) {
   return base;
 }
 function TabBar({ active, onChange, user, pendingCount }) {
+  const isMobile = useIsMobile();
   const tabs = tabsForUser(user);
   return (
-    <div style={{ borderBottom: `1px solid ${C.border}`, display: 'flex', overflowX: 'auto', background: C.bg }}>
+    <div className="kof-tab-bar" style={{ borderBottom: `1px solid ${C.border}`, display: 'flex', overflowX: 'auto', background: C.bg, WebkitOverflowScrolling: 'touch' }}>
       {tabs.map((t) => {
         const isActive = active === t.id;
         const accent = t.admin ? C.purple : C.red;
         return (
           <button key={t.id} onClick={() => onChange(t.id)}
-            style={{ padding: '16px 22px', background: 'transparent', border: 'none', borderBottom: `2px solid ${isActive ? accent : 'transparent'}`, color: isActive ? C.text : C.muted, fontFamily: FONTS.display, letterSpacing: '0.1em', fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 10 }}
+            style={{ padding: isMobile ? '12px 14px' : '16px 22px', background: 'transparent', border: 'none', borderBottom: `2px solid ${isActive ? accent : 'transparent'}`, color: isActive ? C.text : C.muted, fontFamily: FONTS.display, letterSpacing: isMobile ? '0.05em' : '0.1em', fontSize: isMobile ? 12 : 14, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexShrink: 0 }}
             onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.color = C.text; }}
             onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.color = C.muted; }}>
-            <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: isActive ? accent : C.dim }}>{t.n}</span>{t.label}
+            <span style={{ fontFamily: FONTS.mono, fontSize: isMobile ? 9 : 10, color: isActive ? accent : C.dim }}>{t.n}</span>{t.label}
             {t.id === 'admin' && pendingCount > 0 && <span style={{ background: C.amber, color: '#0A0A0A', fontFamily: FONTS.mono, fontSize: 10, padding: '2px 6px', fontWeight: 700 }}>{pendingCount}</span>}
           </button>
         );
@@ -1068,6 +1120,42 @@ function ScheduledRow({ match, playerById, ratingsByVersion, expanded, onClickHu
   const isLive = match.status === 'live';
   const winner = isPast && match.winnerId ? playerById[match.winnerId] : null;
   const v = VERSIONS[match.version];
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <div style={{ background: C.elevated, border: `1px solid ${isLive ? C.red : C.border}`, borderLeft: `3px solid ${isLive ? C.red : isPast ? C.dim : C.amber}`, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+          {isLive ? (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 10, color: C.red, letterSpacing: '0.15em' }}>
+              <span style={{ width: 6, height: 6, background: C.red, borderRadius: '50%', animation: 'kof-pulse 1s infinite' }} />AO VIVO
+            </div>
+          ) : (
+            <div style={{ fontFamily: FONTS.display, fontSize: 13, color: C.text, letterSpacing: '0.05em' }}>{fmtDateTime(match.scheduledAt)}</div>
+          )}
+          {v && <VersionBadge version={match.version} size="sm" />}
+        </div>
+        {!isLive && <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted }}>{fmtRelative(match.scheduledAt)}</div>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <HunterCompact p={p1} rank={r1} won={winner?.id === p1?.id} dim={isPast && winner?.id !== p1?.id} onClick={onClickHunter ? () => onClickHunter(p1?.id) : null} />
+          <span style={{ color: C.dim, fontFamily: FONTS.mono, fontSize: 11 }}>VS</span>
+          <HunterCompact p={p2} rank={r2} won={winner?.id === p2?.id} dim={isPast && winner?.id !== p2?.id} onClick={onClickHunter ? () => onClickHunter(p2?.id) : null} />
+          {match.score && <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.amber, marginLeft: 'auto' }}>{match.score}</span>}
+        </div>
+        {match.notes && expanded && <span style={{ color: C.muted, fontFamily: FONTS.body, fontSize: 11, fontStyle: 'italic' }}>"{match.notes}"</span>}
+        {(isLive || match.vodUrl) && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            {isLive && match.streamUrl && (
+              <a href={match.streamUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: '#fff', background: C.red, textDecoration: 'none', padding: '6px 12px', letterSpacing: '0.1em', flex: 1, justifyContent: 'center' }}>● ASSISTIR LIVE</a>
+            )}
+            {match.vodUrl && (
+              <a href={match.vodUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: C.red, textDecoration: 'none', border: `1px solid ${C.red}`, padding: '6px 12px', letterSpacing: '0.1em', flex: 1, justifyContent: 'center' }}>▶ VER VOD</a>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: C.elevated, border: `1px solid ${isLive ? C.red : C.border}`, borderLeft: `3px solid ${isLive ? C.red : isPast ? C.dim : C.amber}`, padding: '14px 18px', display: 'grid', gridTemplateColumns: expanded ? '160px 1fr auto' : '120px 1fr auto', gap: 16, alignItems: 'center' }}>
@@ -1227,17 +1315,18 @@ function LiveMatchHero({ match, playerById, ratingsByVersion, onOpenHunter }) {
   const e1 = ratingsByVersion[match.version]?.[match.player1Id]?.elo ?? STARTING_ELO;
   const e2 = ratingsByVersion[match.version]?.[match.player2Id]?.elo ?? STARTING_ELO;
   const embed = streamEmbedUrl(match.streamUrl);
+  const isMobile = useIsMobile();
   return (
-    <div style={{ background: `linear-gradient(135deg, ${C.redDim}, ${C.bg})`, border: `1px solid ${C.red}`, padding: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONTS.mono, fontSize: 11, color: '#fff', letterSpacing: '0.2em', marginBottom: 12, flexWrap: 'wrap' }}>
+    <div style={{ background: `linear-gradient(135deg, ${C.redDim}, ${C.bg})`, border: `1px solid ${C.red}`, padding: 'clamp(14px, 4vw, 24px)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONTS.mono, fontSize: isMobile ? 10 : 11, color: '#fff', letterSpacing: '0.2em', marginBottom: 12, flexWrap: 'wrap' }}>
         <span style={{ width: 8, height: 8, background: C.red, borderRadius: '50%', animation: 'kof-pulse 1s infinite' }} />AO VIVO AGORA
-        <VersionBadge version={match.version} size="md" />
+        <VersionBadge version={match.version} size={isMobile ? 'sm' : 'md'} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: embed ? 'minmax(260px, 1fr) minmax(300px, 2fr)' : '1fr', gap: 24, alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
-          <HunterFace p={p1} elo={e1} onClick={onOpenHunter ? () => onOpenHunter(p1.id) : null} />
-          <span style={{ fontFamily: FONTS.display, fontSize: 40, color: C.amber, letterSpacing: '0.1em' }}>VS</span>
-          <HunterFace p={p2} elo={e2} onClick={onOpenHunter ? () => onOpenHunter(p2.id) : null} />
+      <div style={{ display: 'grid', gridTemplateColumns: embed && !isMobile ? 'minmax(260px, 1fr) minmax(300px, 2fr)' : '1fr', gap: isMobile ? 12 : 24, alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 24, flexWrap: 'wrap', justifyContent: isMobile ? 'space-between' : 'flex-start' }}>
+          <HunterFace p={p1} elo={e1} onClick={onOpenHunter ? () => onOpenHunter(p1.id) : null} compact={isMobile} />
+          <span style={{ fontFamily: FONTS.display, fontSize: isMobile ? 24 : 40, color: C.amber, letterSpacing: '0.1em' }}>VS</span>
+          <HunterFace p={p2} elo={e2} onClick={onOpenHunter ? () => onOpenHunter(p2.id) : null} compact={isMobile} />
         </div>
         {embed && <div style={{ aspectRatio: '16/9', background: '#000', position: 'relative' }}>
           <iframe src={embed} title="Live" frameBorder="0" allowFullScreen allow="autoplay; encrypted-media; picture-in-picture" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
@@ -1256,38 +1345,39 @@ function NextMatchHero({ match, playerById, ratingsByVersion, onNavigate, onOpen
   const p1 = playerById[match.player1Id], p2 = playerById[match.player2Id];
   const e1 = ratingsByVersion[match.version]?.[match.player1Id]?.elo ?? STARTING_ELO;
   const e2 = ratingsByVersion[match.version]?.[match.player2Id]?.elo ?? STARTING_ELO;
+  const isMobile = useIsMobile();
   return (
-    <div style={{ background: C.elevated, border: `1px solid ${C.border}`, padding: 28 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-            <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.amber, letterSpacing: '0.2em' }}>★ PRÓXIMA LUTA</span>
-            <VersionBadge version={match.version} />
+    <div style={{ background: C.elevated, border: `1px solid ${C.border}`, padding: 'clamp(14px, 4vw, 28px)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: FONTS.mono, fontSize: isMobile ? 10 : 11, color: C.amber, letterSpacing: '0.2em' }}>★ PRÓXIMA LUTA</span>
+            <VersionBadge version={match.version} size={isMobile ? 'sm' : 'md'} />
           </div>
-          <div style={{ fontFamily: FONTS.display, fontSize: 22, color: C.text, letterSpacing: '0.05em' }}>{fmtDateTime(match.scheduledAt)}</div>
+          <div style={{ fontFamily: FONTS.display, fontSize: isMobile ? 16 : 22, color: C.text, letterSpacing: '0.05em' }}>{fmtDateTime(match.scheduledAt)}</div>
           <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.muted, marginTop: 2 }}>{fmtRelative(match.scheduledAt)}</div>
         </div>
-        <Btn variant="amber" size="sm" onClick={() => onNavigate('agenda')}>VER AGENDA COMPLETA →</Btn>
+        <Btn variant="amber" size="sm" onClick={() => onNavigate('agenda')}>{isMobile ? 'AGENDA →' : 'VER AGENDA COMPLETA →'}</Btn>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
-        <HunterFace p={p1} elo={e1} onClick={onOpenHunter ? () => onOpenHunter(p1.id) : null} />
-        <span style={{ fontFamily: FONTS.display, fontSize: 36, color: C.dim, letterSpacing: '0.1em' }}>VS</span>
-        <HunterFace p={p2} elo={e2} onClick={onOpenHunter ? () => onOpenHunter(p2.id) : null} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 24, flexWrap: 'wrap', justifyContent: isMobile ? 'space-between' : 'flex-start' }}>
+        <HunterFace p={p1} elo={e1} onClick={onOpenHunter ? () => onOpenHunter(p1.id) : null} compact={isMobile} />
+        <span style={{ fontFamily: FONTS.display, fontSize: isMobile ? 22 : 36, color: C.dim, letterSpacing: '0.1em' }}>VS</span>
+        <HunterFace p={p2} elo={e2} onClick={onOpenHunter ? () => onOpenHunter(p2.id) : null} compact={isMobile} />
       </div>
       {match.notes && <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 12, fontStyle: 'italic' }}>"{match.notes}"</div>}
     </div>
   );
 }
-function HunterFace({ p, elo, onClick }) {
+function HunterFace({ p, elo, onClick, compact }) {
   if (!p) return null;
   const r = getRank(elo);
   return (
-    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: onClick ? 'pointer' : 'default' }}>
-      <Avatar player={p} size={56} />
-      <div>
-        <div style={{ fontFamily: FONTS.display, fontSize: 26, color: r.color, letterSpacing: '0.05em', lineHeight: 1 }}>{p.tag}</div>
-        <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 2 }}>{p.name}</div>
-        <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: r.color, marginTop: 2 }}>{r.id}-RANK · {elo} ELO</div>
+    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: compact ? 8 : 12, cursor: onClick ? 'pointer' : 'default', minWidth: 0 }}>
+      <Avatar player={p} size={compact ? 40 : 56} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONTS.display, fontSize: compact ? 18 : 26, color: r.color, letterSpacing: '0.05em', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.tag}</div>
+        {!compact && <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 2 }}>{p.name}</div>}
+        <div style={{ fontFamily: FONTS.mono, fontSize: compact ? 9 : 11, color: r.color, marginTop: 2 }}>{r.id} · {elo}</div>
       </div>
     </div>
   );
@@ -1407,7 +1497,8 @@ function VodCardCompact({ match, playerById }) {
 // ═══════════════════════════════════════════════════════════
 function HuntersView({ players, ratingsByVersion, onOpenHunter }) {
   const [sortVersion, setSortVersion] = useState('2002');
-  const enriched = useMemo(() => players.filter((p) => p.id !== 'admin').map((p) => {
+  const isMobile = useIsMobile();
+  const enriched = useMemo(() => players.filter(isCompetitor).map((p) => {
     const r2002 = ratingsByVersion['2002']?.[p.id] || { elo: STARTING_ELO, w: 0, l: 0 };
     const rum = ratingsByVersion['um']?.[p.id] || { elo: STARTING_ELO, w: 0, l: 0 };
     return { ...p, elo2002: r2002.elo, w2002: r2002.w, l2002: r2002.l, eloUm: rum.elo, wUm: rum.w, lUm: rum.l };
@@ -1421,13 +1512,29 @@ function HuntersView({ players, ratingsByVersion, onOpenHunter }) {
         {VERSION_IDS.map((v) => (
           <button key={v} onClick={() => setSortVersion(v)}
             style={{ background: sortVersion === v ? VERSIONS[v].color : 'transparent', color: sortVersion === v ? '#0A0A0A' : VERSIONS[v].color, border: `1px solid ${VERSIONS[v].color}`, padding: '4px 10px', fontFamily: FONTS.mono, fontSize: 10, cursor: 'pointer', letterSpacing: '0.15em' }}>
-            ORDENAR POR {VERSIONS[v].label}
+            {isMobile ? VERSIONS[v].label : `ORDENAR POR ${VERSIONS[v].label}`}
           </button>
         ))}
       </div>
     }>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: C.border }}>
-        {enriched.map((p, i) => (
+        {enriched.map((p, i) => isMobile ? (
+          <div key={p.id} onClick={() => onOpenHunter(p.id)}
+            style={{ background: C.elevated, padding: 12, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: FONTS.mono, color: C.dim, fontSize: 11, minWidth: 24 }}>#{i + 1}</span>
+              <Avatar player={p} size={36} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: FONTS.display, color: C.amber, fontSize: 16, letterSpacing: '0.05em' }}>{p.tag}</div>
+                <div style={{ fontFamily: FONTS.body, color: C.muted, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <VersionEloCell version="2002" elo={p.elo2002} w={p.w2002} l={p.l2002} />
+              <VersionEloCell version="um" elo={p.eloUm} w={p.wUm} l={p.lUm} />
+            </div>
+          </div>
+        ) : (
           <div key={p.id} onClick={() => onOpenHunter(p.id)}
             style={{ display: 'grid', gridTemplateColumns: '40px 36px 80px 1fr 130px 130px', gap: 14, alignItems: 'center', padding: '12px 14px', background: C.elevated, cursor: 'pointer' }}>
             <span style={{ fontFamily: FONTS.mono, color: C.dim, fontSize: 12 }}>{String(i + 1).padStart(2, '0')}</span>
@@ -1463,6 +1570,7 @@ function VersionEloCell({ version, elo, w, l }) {
 // LUTADOR PROFILE (public + own)
 // ═══════════════════════════════════════════════════════════
 function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, playerById, onBack, onOpenHunter, onUpdateProfile }) {
+  const isMobileProfile = useIsMobile();
   const [showShare, setShowShare] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(() => ({
@@ -1499,9 +1607,9 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
       {/* Hero */}
       {editing ? (
         <Panel title="EDITAR PERFIL" accent={C.cyan}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 20, alignItems: 'flex-start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobileProfile ? '1fr' : 'auto 1fr', gap: 20, alignItems: 'flex-start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
-              <Avatar player={{ ...hunter, avatarUrl: draft.avatarUrl, avatarColor: hunter.avatarColor }} size={120} />
+              <Avatar player={{ ...hunter, avatarUrl: draft.avatarUrl, avatarColor: hunter.avatarColor }} size={isMobileProfile ? 80 : 120} />
               <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, letterSpacing: '0.15em' }}>PRÉ-VISUALIZAÇÃO</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1525,10 +1633,10 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
           </div>
         </Panel>
       ) : (
-        <div style={{ background: `linear-gradient(135deg, ${rank.color}22, ${C.bg})`, border: `1px solid ${rank.color}`, borderTop: `3px solid ${rank.color}`, padding: 28, display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
-          <Avatar player={hunter} size={96} />
+        <div style={{ background: `linear-gradient(135deg, ${rank.color}22, ${C.bg})`, border: `1px solid ${rank.color}`, borderTop: `3px solid ${rank.color}`, padding: 'clamp(16px, 4vw, 28px)', display: 'flex', alignItems: 'center', gap: 'clamp(12px, 3vw, 24px)', flexWrap: 'wrap' }}>
+          <Avatar player={hunter} size={isMobileProfile ? 64 : 96} />
           <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontFamily: FONTS.display, fontSize: 48, color: rank.color, letterSpacing: '0.05em', lineHeight: 0.9 }}>{hunter.tag}</div>
+            <div style={{ fontFamily: FONTS.display, fontSize: 'clamp(32px, 8vw, 48px)', color: rank.color, letterSpacing: '0.05em', lineHeight: 0.9 }}>{hunter.tag}</div>
             <div style={{ fontFamily: FONTS.body, fontSize: 18, color: C.text, marginTop: 4 }}>{hunter.name}</div>
             {hunter.bio && <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 8, fontStyle: 'italic' }}>"{hunter.bio}"</div>}
             <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.muted, marginTop: 8 }}>LUTADOR DESDE {fmtDate(hunter.joinedAt)}</div>
@@ -1593,44 +1701,358 @@ function BigStat({ label, value, color, sub }) {
 // ═══════════════════════════════════════════════════════════
 // ADMIN PANEL
 // ═══════════════════════════════════════════════════════════
-function AdminPanel({ players, matches, ratingsByVersion, playerById, onScheduleMatch, onUpdateMatch, onDeleteMatch, onResetDemo }) {
+function AdminPanel({ players, matches, ratingsByVersion, playerById, onScheduleMatch, onUpdateMatch, onDeleteMatch, onResetDemo, onBanPlayer, onUnbanPlayer, onAdminEditProfile, onDeletePlayer }) {
+  const [adminTab, setAdminTab] = useState('duelos');
   const pending = useMemo(() => matches.filter((m) => (m.status === 'scheduled' && new Date(m.scheduledAt) < new Date()) || m.status === 'live')
     .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt)), [matches]);
   const upcoming = useMemo(() => matches.filter((m) => m.status === 'scheduled' && new Date(m.scheduledAt) > new Date())
     .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt)), [matches]);
   const completed = useMemo(() => matches.filter((m) => m.status === 'completed')
     .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)).slice(0, 10), [matches]);
+  const bannedCount = useMemo(() => players.filter((p) => p.isBanned).length, [players]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ background: C.purple + '15', border: `1px solid ${C.purple}`, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <span style={{ fontFamily: FONTS.mono, fontSize: 12, color: C.purple, letterSpacing: '0.15em' }}>⚡ MODO ADMIN · CONTROLE TOTAL DE AGENDA, RESULTADOS, LIVES E VODS</span>
+        <span style={{ fontFamily: FONTS.mono, fontSize: 12, color: C.purple, letterSpacing: '0.15em' }}>⚡ MODO ADMIN · CONTROLE TOTAL</span>
         <Btn variant="ghost" size="sm" onClick={() => { if (confirm('Resetar todos os dados de demo?')) onResetDemo(); }}>RESET DEMO</Btn>
       </div>
 
-      <AdminScheduleForm players={players} ratingsByVersion={ratingsByVersion} onSchedule={onScheduleMatch} />
+      {/* Sub-tabs do admin */}
+      <div style={{ display: 'flex', gap: 8, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
+        <button onClick={() => setAdminTab('duelos')}
+          style={{ background: 'transparent', border: 'none', borderBottom: `2px solid ${adminTab === 'duelos' ? C.purple : 'transparent'}`, color: adminTab === 'duelos' ? C.text : C.muted, padding: '10px 18px', fontFamily: FONTS.display, fontSize: 14, letterSpacing: '0.1em', cursor: 'pointer' }}>
+          🥊 DUELOS
+          {pending.length > 0 && <span style={{ marginLeft: 8, background: C.amber, color: '#0A0A0A', fontFamily: FONTS.mono, fontSize: 10, padding: '2px 6px' }}>{pending.length}</span>}
+        </button>
+        <button onClick={() => setAdminTab('moderacao')}
+          style={{ background: 'transparent', border: 'none', borderBottom: `2px solid ${adminTab === 'moderacao' ? C.red : 'transparent'}`, color: adminTab === 'moderacao' ? C.text : C.muted, padding: '10px 18px', fontFamily: FONTS.display, fontSize: 14, letterSpacing: '0.1em', cursor: 'pointer' }}>
+          🛡️ MODERAÇÃO
+          {bannedCount > 0 && <span style={{ marginLeft: 8, background: C.red, color: '#fff', fontFamily: FONTS.mono, fontSize: 10, padding: '2px 6px' }}>{bannedCount}</span>}
+        </button>
+      </div>
 
-      <Panel title={`RESULTADOS PENDENTES · ${pending.length}`} accent={C.amber}>
-        {pending.length === 0 ? <Empty msg="Nenhum duelo aguardando resultado. ✓" /> : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {pending.map((m) => <AdminMatchEditor key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onUpdate={onUpdateMatch} onDelete={onDeleteMatch} />)}
-          </div>
-        )}
-      </Panel>
+      {adminTab === 'duelos' && (
+        <>
+          <AdminScheduleForm players={players} ratingsByVersion={ratingsByVersion} onSchedule={onScheduleMatch} />
 
-      <Panel title={`PRÓXIMOS DUELOS · ${upcoming.length}`}>
-        {upcoming.length === 0 ? <Empty msg="Nenhum duelo agendado. Use o formulário acima." /> : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {upcoming.map((m) => <AdminUpcomingEditor key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onUpdate={onUpdateMatch} onDelete={onDeleteMatch} />)}
-          </div>
-        )}
-      </Panel>
+          <Panel title={`RESULTADOS PENDENTES · ${pending.length}`} accent={C.amber}>
+            {pending.length === 0 ? <Empty msg="Nenhum duelo aguardando resultado. ✓" /> : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {pending.map((m) => <AdminMatchEditor key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onUpdate={onUpdateMatch} onDelete={onDeleteMatch} />)}
+              </div>
+            )}
+          </Panel>
 
-      <Panel title="CONCLUÍDOS RECENTES (editar VOD)">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {completed.map((m) => <AdminVodEditor key={m.id} match={m} playerById={playerById} onUpdate={onUpdateMatch} />)}
+          <Panel title={`PRÓXIMOS DUELOS · ${upcoming.length}`}>
+            {upcoming.length === 0 ? <Empty msg="Nenhum duelo agendado. Use o formulário acima." /> : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {upcoming.map((m) => <AdminUpcomingEditor key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onUpdate={onUpdateMatch} onDelete={onDeleteMatch} />)}
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="CONCLUÍDOS RECENTES (editar VOD)">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {completed.map((m) => <AdminVodEditor key={m.id} match={m} playerById={playerById} onUpdate={onUpdateMatch} />)}
+            </div>
+          </Panel>
+        </>
+      )}
+
+      {adminTab === 'moderacao' && (
+        <ModerationPanel players={players} matches={matches} ratingsByVersion={ratingsByVersion} onBanPlayer={onBanPlayer} onUnbanPlayer={onUnbanPlayer} onAdminEditProfile={onAdminEditProfile} onDeletePlayer={onDeletePlayer} />
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODERATION PANEL — admin only
+// ═══════════════════════════════════════════════════════════
+function ModerationPanel({ players, matches, ratingsByVersion, onBanPlayer, onUnbanPlayer, onAdminEditProfile, onDeletePlayer }) {
+  const [search, setSearch] = useState('');
+  const [showBanned, setShowBanned] = useState(false);
+  const [editing, setEditing] = useState(null); // playerId
+  const [banning, setBanning] = useState(null); // { player, reason }
+  const [deleting, setDeleting] = useState(null); // player
+
+  const list = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return players
+      .filter((p) => p.id !== 'admin')
+      .filter((p) => showBanned ? (p.isBanned || p.isDeleted) : !p.isBanned && !p.isDeleted)
+      .filter((p) => !q || p.tag.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
+      .map((p) => {
+        const r2002 = ratingsByVersion['2002']?.[p.id] || { elo: STARTING_ELO, w: 0, l: 0 };
+        const rum = ratingsByVersion['um']?.[p.id] || { elo: STARTING_ELO, w: 0, l: 0 };
+        const totalGames = r2002.w + r2002.l + rum.w + rum.l;
+        return { ...p, elo2002: r2002.elo, eloUm: rum.elo, totalGames };
+      })
+      .sort((a, b) => new Date(b.joinedAt) - new Date(a.joinedAt));
+  }, [players, ratingsByVersion, search, showBanned]);
+
+  const activeCount = players.filter((p) => p.id !== 'admin' && !p.isBanned && !p.isDeleted).length;
+  const inactiveCount = players.filter((p) => p.isBanned || p.isDeleted).length;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ background: C.red + '08', border: `1px solid ${C.redDim}`, padding: 14, fontFamily: FONTS.body, fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
+        <strong style={{ color: C.text }}>🛡️ Painel de Moderação.</strong> Aqui você gerencia os lutadores da Arena. Banir um lutador o remove de todas as listas públicas (ranking, hunters, agenda), mas <strong>preserva o histórico</strong> das lutas dele com outros — eles aparecem com a tag <code style={{ color: C.red, padding: '1px 5px', border: `1px solid ${C.red}`, fontFamily: FONTS.mono, fontSize: 11 }}>BANIDO</code>. Você pode desbanir a qualquer momento.
+      </div>
+
+      {/* Filtros */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <label style={lbl}>BUSCAR LUTADOR</label>
+          <Input value={search} onChange={setSearch} placeholder="tag ou nome..." />
         </div>
-      </Panel>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => setShowBanned(false)}
+            style={{ background: !showBanned ? C.green : 'transparent', color: !showBanned ? '#0A0A0A' : C.green, border: `1px solid ${C.green}`, padding: '8px 14px', fontFamily: FONTS.display, fontSize: 13, cursor: 'pointer', letterSpacing: '0.1em' }}>
+            ATIVOS · {activeCount}
+          </button>
+          <button onClick={() => setShowBanned(true)}
+            style={{ background: showBanned ? C.red : 'transparent', color: showBanned ? '#fff' : C.red, border: `1px solid ${C.red}`, padding: '8px 14px', fontFamily: FONTS.display, fontSize: 13, cursor: 'pointer', letterSpacing: '0.1em' }}>
+            INATIVOS · {inactiveCount}
+          </button>
+        </div>
+      </div>
+
+      {/* Lista */}
+      {list.length === 0 ? (
+        <Panel><Empty msg={showBanned ? 'Nenhum lutador banido ou deletado.' : (search ? 'Nenhum lutador encontrado com essa busca.' : 'Nenhum lutador cadastrado ainda.')} /></Panel>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: C.border }}>
+          {list.map((p) => (
+            <ModerationRow key={p.id} player={p} ratingsByVersion={ratingsByVersion}
+              onEdit={() => setEditing(p.id)}
+              onBan={() => setBanning({ player: p, reason: '' })}
+              onUnban={() => { if (confirm(`Desbanir ${p.tag}?`)) onUnbanPlayer(p.id); }}
+              onDelete={() => setDeleting(p)} />
+          ))}
+        </div>
+      )}
+
+      {/* Modal: editar perfil */}
+      {editing && (
+        <AdminEditProfileModal
+          player={players.find((p) => p.id === editing)}
+          onSave={(patch) => { onAdminEditProfile(editing, patch); setEditing(null); }}
+          onClose={() => setEditing(null)} />
+      )}
+
+      {/* Modal: banir */}
+      {banning && (
+        <BanModal player={banning.player}
+          onConfirm={(reason) => { onBanPlayer(banning.player.id, reason); setBanning(null); }}
+          onClose={() => setBanning(null)} />
+      )}
+
+      {/* Modal: deletar permanentemente */}
+      {deleting && (
+        <DeletePlayerModal player={deleting}
+          onConfirm={() => { onDeletePlayer(deleting.id); setDeleting(null); }}
+          onClose={() => setDeleting(null)} />
+      )}
+    </div>
+  );
+}
+
+function ModerationRow({ player, ratingsByVersion, onEdit, onBan, onUnban, onDelete }) {
+  const isMobile = useIsMobile();
+  const isDeleted = player.isDeleted;
+  if (isMobile) {
+    return (
+      <div style={{ background: C.elevated, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Avatar player={player} size={36} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: FONTS.display, color: isDeleted ? C.dim : (player.isBanned ? C.dim : C.amber), fontSize: 16, letterSpacing: '0.05em', textDecoration: (player.isBanned || isDeleted) ? 'line-through' : 'none', fontStyle: isDeleted ? 'italic' : 'normal' }}>
+              {isDeleted ? '(perfil deletado)' : player.tag}
+            </div>
+            <div style={{ fontFamily: FONTS.body, color: C.text, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {isDeleted ? '—' : player.name}
+            </div>
+          </div>
+          {isDeleted && <span style={{ fontFamily: FONTS.mono, fontSize: 9, color: C.dim, border: `1px solid ${C.dim}`, padding: '2px 6px', letterSpacing: '0.15em' }}>DELETADO</span>}
+        </div>
+        <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, lineHeight: 1.5 }}>
+          desde {fmtDate(player.joinedAt)} · {player.totalGames} duelos<br/>
+          <span style={{ color: C.red }}>{player.elo2002}</span> · 2002  ·  <span style={{ color: C.cyan }}>{player.eloUm}</span> · UM
+          {!isDeleted && player.isBanned && player.banReason && <><br/><span style={{ color: C.red }}>razão: "{player.banReason}"</span></>}
+          {!isDeleted && player.isBanned && player.bannedAt && <><br/><span style={{ color: C.dim }}>banido em {fmtDate(player.bannedAt)}</span></>}
+          {isDeleted && player.deletedAt && <><br/><span style={{ color: C.dim }}>deletado em {fmtDate(player.deletedAt)}</span></>}
+        </div>
+        {!isDeleted && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <Btn variant="ghost" size="sm" onClick={onEdit} style={{ flex: 1 }}>EDITAR</Btn>
+            {player.isBanned ? (
+              <Btn variant="confirm" size="sm" onClick={onUnban} style={{ flex: 1 }}>✓ DESBANIR</Btn>
+            ) : (
+              <Btn variant="danger" size="sm" onClick={onBan} style={{ flex: 1 }}>🚫 BANIR</Btn>
+            )}
+            <Btn variant="danger" size="sm" onClick={onDelete} style={{ flex: '1 1 100%' }}>🗑️ EXCLUIR PERMANENTE</Btn>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '36px 80px 1fr 100px 100px auto', gap: 14, alignItems: 'center', padding: '12px 14px', background: C.elevated }}>
+      <Avatar player={player} size={36} />
+      <span style={{ fontFamily: FONTS.display, color: isDeleted ? C.dim : (player.isBanned ? C.dim : C.amber), fontSize: 16, letterSpacing: '0.05em', textDecoration: (player.isBanned || isDeleted) ? 'line-through' : 'none', fontStyle: isDeleted ? 'italic' : 'normal' }}>
+        {isDeleted ? 'DELETED' : player.tag}
+      </span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONTS.body, color: C.text, fontSize: 14, fontStyle: isDeleted ? 'italic' : 'normal' }}>
+          {isDeleted ? '(perfil deletado)' : player.name}
+        </div>
+        <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, marginTop: 2 }}>
+          desde {fmtDate(player.joinedAt)} · {player.totalGames} duelos
+          {!isDeleted && player.isBanned && player.banReason && <span style={{ color: C.red, marginLeft: 8 }}>· "{player.banReason}"</span>}
+          {!isDeleted && player.isBanned && player.bannedAt && <span style={{ color: C.dim, marginLeft: 8 }}>· banido em {fmtDate(player.bannedAt)}</span>}
+          {isDeleted && player.deletedAt && <span style={{ color: C.dim, marginLeft: 8 }}>· deletado em {fmtDate(player.deletedAt)}</span>}
+        </div>
+      </div>
+      <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.muted, textAlign: 'right' }}>
+        <span style={{ color: C.red }}>{player.elo2002}</span> · 2002
+      </div>
+      <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.muted, textAlign: 'right' }}>
+        <span style={{ color: C.cyan }}>{player.eloUm}</span> · UM
+      </div>
+      {isDeleted ? (
+        <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.dim, letterSpacing: '0.15em' }}>DELETADO</span>
+      ) : (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Btn variant="ghost" size="sm" onClick={onEdit}>EDITAR</Btn>
+          {player.isBanned ? (
+            <Btn variant="confirm" size="sm" onClick={onUnban}>✓ DESBANIR</Btn>
+          ) : (
+            <Btn variant="danger" size="sm" onClick={onBan}>🚫 BANIR</Btn>
+          )}
+          <Btn variant="danger" size="sm" onClick={onDelete}>🗑️</Btn>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BanModal({ player, onConfirm, onClose }) {
+  const [reason, setReason] = useState('');
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.elevated, border: `1px solid ${C.red}`, borderTop: `3px solid ${C.red}`, maxWidth: 480, width: '100%' }}>
+        <div style={{ padding: 'clamp(14px, 4vw, 20px) clamp(16px, 4vw, 24px)', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.red, letterSpacing: '0.2em', marginBottom: 4 }}>🚫 BANIR LUTADOR</div>
+            <h3 style={{ fontFamily: FONTS.display, fontSize: 24, letterSpacing: '0.05em', margin: 0, color: C.text }}>{player.tag}</h3>
+            <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 2 }}>{player.name}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ padding: 'clamp(16px, 4vw, 24px)' }}>
+          <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>
+            Este lutador vai sumir de todas as listas públicas, mas o <strong style={{ color: C.text }}>histórico de lutas dele será preservado</strong>. Você pode desbanir a qualquer momento.
+          </div>
+          <label style={lbl}>RAZÃO DO BAN (OPCIONAL · SÓ ADMIN VÊ)</label>
+          <Textarea value={reason} onChange={setReason} placeholder="ex: spam de palavrões na bio, trollagem em rankeada..." rows={3} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+            <Btn variant="ghost" onClick={onClose}>CANCELAR</Btn>
+            <Btn variant="primary" onClick={() => onConfirm(reason.trim())}>🚫 CONFIRMAR BAN</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeletePlayerModal({ player, onConfirm, onClose }) {
+  const [confirmText, setConfirmText] = useState('');
+  const expected = player.tag;
+  const ok = confirmText === expected;
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.elevated, border: `2px solid ${C.red}`, borderTop: `4px solid ${C.red}`, maxWidth: 480, width: '100%' }}>
+        <div style={{ padding: 'clamp(14px, 4vw, 20px) clamp(16px, 4vw, 24px)', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.red, letterSpacing: '0.2em', marginBottom: 4 }}>🗑️ EXCLUSÃO PERMANENTE</div>
+            <h3 style={{ fontFamily: FONTS.display, fontSize: 22, letterSpacing: '0.05em', margin: 0, color: C.text }}>{player.tag}</h3>
+            <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 2 }}>{player.name}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ padding: 'clamp(16px, 4vw, 24px)' }}>
+          <div style={{ background: C.red + '15', border: `1px solid ${C.red}`, padding: 14, marginBottom: 16, fontFamily: FONTS.body, fontSize: 13, color: C.text, lineHeight: 1.6 }}>
+            <strong style={{ color: C.red }}>⚠️ ATENÇÃO — AÇÃO IRREVERSÍVEL.</strong><br/>
+            Você está prestes a <strong>excluir permanentemente</strong> o lutador <strong>{player.tag}</strong>. Isso vai:
+            <ul style={{ margin: '8px 0 0 20px', padding: 0, color: C.muted }}>
+              <li>Remover o nome, foto, bio e contato</li>
+              <li>Bloquear ele de fazer login de novo</li>
+              <li>Manter as lutas antigas, mas com <em>"(perfil deletado)"</em> no lugar do nome</li>
+            </ul>
+          </div>
+          <div style={{ background: C.amberDim, border: `1px solid ${C.amber}`, padding: 12, marginBottom: 16, fontFamily: FONTS.body, fontSize: 12, color: C.text, lineHeight: 1.6 }}>
+            💡 <strong>Pra moderação normal, prefira BANIR</strong> — fica reversível. Use exclusão só pra spam, bots ou contas criadas por engano.
+          </div>
+          <label style={lbl}>PARA CONFIRMAR, DIGITE A TAG <strong style={{ color: C.text }}>{expected}</strong></label>
+          <Input value={confirmText} onChange={setConfirmText} placeholder={expected} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+            <Btn variant="ghost" onClick={onClose}>CANCELAR</Btn>
+            <Btn variant="primary" onClick={() => { if (ok) onConfirm(); }} disabled={!ok}>
+              🗑️ EXCLUIR PERMANENTEMENTE
+            </Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminEditProfileModal({ player, onSave, onClose }) {
+  const [draft, setDraft] = useState({
+    tag: player.tag,
+    name: player.name,
+    bio: player.bio || '',
+    avatarUrl: player.avatarUrl || '',
+  });
+  const save = () => {
+    const tag = draft.tag.toUpperCase().slice(0, 6);
+    if (tag.length < 2) { alert('Tag precisa ter no mínimo 2 letras.'); return; }
+    onSave({ tag, name: draft.name.trim(), bio: draft.bio.trim() || null, avatarUrl: draft.avatarUrl.trim() || null });
+  };
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: C.elevated, border: `1px solid ${C.cyan}`, borderTop: `3px solid ${C.cyan}`, maxWidth: 520, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ padding: 'clamp(14px, 4vw, 20px) clamp(16px, 4vw, 24px)', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.cyan, letterSpacing: '0.2em', marginBottom: 4 }}>✏️ EDITAR PERFIL</div>
+            <h3 style={{ fontFamily: FONTS.display, fontSize: 24, letterSpacing: '0.05em', margin: 0, color: C.text }}>{player.tag}</h3>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ padding: 'clamp(16px, 4vw, 24px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontFamily: FONTS.body, fontSize: 12, color: C.muted, marginBottom: 4, lineHeight: 1.5 }}>
+            Use isso pra corrigir conteúdo inadequado (palavrões, ofensas, etc) sem precisar banir o lutador.
+          </div>
+          <div><label style={lbl}>TAG (2-6 LETRAS)</label>
+            <Input value={draft.tag} onChange={(v) => setDraft((d) => ({ ...d, tag: v.toUpperCase() }))} />
+          </div>
+          <div><label style={lbl}>NOME</label>
+            <Input value={draft.name} onChange={(v) => setDraft((d) => ({ ...d, name: v }))} />
+          </div>
+          <div><label style={lbl}>BIO</label>
+            <Textarea value={draft.bio} onChange={(v) => setDraft((d) => ({ ...d, bio: v }))} rows={3} />
+          </div>
+          <div><label style={lbl}>URL DA FOTO</label>
+            <Input value={draft.avatarUrl} onChange={(v) => setDraft((d) => ({ ...d, avatarUrl: v }))} placeholder="https://..." />
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+            <Btn variant="ghost" onClick={onClose}>CANCELAR</Btn>
+            <Btn variant="cyan" onClick={save}>✓ SALVAR</Btn>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1644,7 +2066,7 @@ function AdminScheduleForm({ players, ratingsByVersion, onSchedule }) {
     return d.toISOString().slice(0, 16);
   });
   const [notes, setNotes] = useState('');
-  const eligible = players.filter((p) => p.id !== 'admin');
+  const eligible = players.filter(isCompetitor);
   const prediction = useMemo(() => {
     if (!p1 || !p2 || p1 === p2) return null;
     return predictDelta(ratingsByVersion[version]?.[p1]?.elo ?? STARTING_ELO, ratingsByVersion[version]?.[p2]?.elo ?? STARTING_ELO);
@@ -1909,7 +2331,7 @@ function RankingTable({ version, players, matches, year, month, isAnnual, onOpen
     const end = isAnnual ? endOfYear(year) : endOfMonth(year, month);
     const before = computeRatingsByVersion(players, matches, new Date(start.getTime() - 1));
     const after = computeRatingsByVersion(players, matches, end);
-    return players.filter((p) => p.id !== 'admin').map((p) => {
+    return players.filter(isCompetitor).map((p) => {
       const beforeElo = before[version]?.[p.id]?.elo ?? STARTING_ELO;
       const afterElo = after[version]?.[p.id]?.elo ?? STARTING_ELO;
       const stats = periodStats(p.id, matches, version, start, end);
@@ -1930,21 +2352,23 @@ function RankingTable({ version, players, matches, year, month, isAnnual, onOpen
             const podium = [C.amber, '#D9D9D9', '#CD7F32'][i];
             return (
               <div key={p.id} onClick={() => onOpenHunter(p.id)}
-                style={{ display: 'grid', gridTemplateColumns: '38px 30px 36px 1fr 60px 70px', gap: 10, alignItems: 'center', padding: '12px', background: qualified ? `${C.amber}08` : C.elevated, borderLeft: qualified ? `2px solid ${C.amber}` : '2px solid transparent', cursor: 'pointer' }}>
-                <span style={{ fontFamily: FONTS.display, fontSize: 18, color: i < 3 ? podium : C.text, letterSpacing: '0.05em' }}>{String(i + 1).padStart(2, '0')}</span>
+                style={{ display: 'grid', gridTemplateColumns: 'minmax(28px, auto) 28px 32px 1fr auto auto', gap: 8, alignItems: 'center', padding: '10px 12px', background: qualified ? `${C.amber}08` : C.elevated, borderLeft: qualified ? `2px solid ${C.amber}` : '2px solid transparent', cursor: 'pointer' }}>
+                <span style={{ fontFamily: FONTS.display, fontSize: 16, color: i < 3 ? podium : C.text, letterSpacing: '0.05em' }}>{String(i + 1).padStart(2, '0')}</span>
                 <div style={{ width: 26, height: 26, border: `2px solid ${r.color}`, color: r.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONTS.display, fontSize: 12 }}>{r.id}</div>
                 <Avatar player={p} size={28} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: FONTS.display, fontSize: 15, color: r.color, letterSpacing: '0.05em' }}>{p.tag}</div>
-                  <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted }}>
+                  <div style={{ fontFamily: FONTS.display, fontSize: 14, color: r.color, letterSpacing: '0.05em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.tag}</div>
+                  <div style={{ fontFamily: FONTS.mono, fontSize: 9, color: C.muted }}>
                     <span style={{ color: C.green }}>{p.stats.w}V</span>·<span style={{ color: C.red }}>{p.stats.l}D</span>
-                    {qualified && <span style={{ color: C.amber, marginLeft: 6 }}>★ QUALIF</span>}
+                    {qualified && <span style={{ color: C.amber, marginLeft: 4 }}>★</span>}
                   </div>
                 </div>
-                <span style={{ fontFamily: FONTS.mono, fontSize: 11, textAlign: 'right', color: p.delta > 0 ? C.green : p.delta < 0 ? C.red : C.muted }}>
-                  {isAnnual ? '' : `${p.delta > 0 ? '+' : ''}${p.delta}`}
-                </span>
-                <span style={{ fontFamily: FONTS.display, fontSize: 16, textAlign: 'right', color: r.color, letterSpacing: '0.02em' }}>{p.currentElo}</span>
+                {!isAnnual && (
+                  <span style={{ fontFamily: FONTS.mono, fontSize: 10, textAlign: 'right', color: p.delta > 0 ? C.green : p.delta < 0 ? C.red : C.muted }}>
+                    {`${p.delta > 0 ? '+' : ''}${p.delta}`}
+                  </span>
+                )}
+                <span style={{ fontFamily: FONTS.display, fontSize: 14, textAlign: 'right', color: r.color, letterSpacing: '0.02em' }}>{p.currentElo}</span>
               </div>
             );
           })}
@@ -1969,7 +2393,7 @@ function ChampionshipView({ players, matches, ratingsByVersion, isAdmin, onOpenH
   }, [matches]);
 
   const top8 = useMemo(() => {
-    return players.filter((p) => p.id !== 'admin').map((p) => ({
+    return players.filter(isCompetitor).map((p) => ({
       ...p,
       elo: ratingsByVersion[version]?.[p.id]?.elo ?? STARTING_ELO,
       ys: periodStats(p.id, matches, version, startOfYear(year), endOfYear(year))
@@ -2056,25 +2480,33 @@ function ChampionshipView({ players, matches, ratingsByVersion, isAdmin, onOpenH
   );
 }
 function Bracket({ bracket, playerById, ratingsByVersion, version, onAdvance, canEdit }) {
+  const isMobile = useIsMobile();
   const champion = bracket.final?.winner ? playerById[bracket.final.winner] : null;
   const champElo = champion ? (ratingsByVersion[version]?.[champion.id]?.elo ?? STARTING_ELO) : null;
   return (
     <div>
       {champion && (
-        <div style={{ background: `linear-gradient(135deg, #A855F7, #6D28D9)`, color: '#fff', padding: '24px 28px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 20, boxShadow: '0 0 30px rgba(168, 85, 247, 0.4)', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 48 }}>👑</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: FONTS.mono, fontSize: 11, letterSpacing: '0.2em', opacity: 0.7 }}>SHADOW MONARCH · {VERSIONS[version].fullLabel.toUpperCase()} · {bracket.year}</div>
-            <div style={{ fontFamily: FONTS.display, fontSize: 42, letterSpacing: '0.05em', lineHeight: 1 }}>{champion.tag}</div>
-            <div style={{ fontFamily: FONTS.body, fontSize: 14, marginTop: 4 }}>{champion.name}</div>
+        <div style={{ background: `linear-gradient(135deg, #A855F7, #6D28D9)`, color: '#fff', padding: isMobile ? '18px 20px' : '24px 28px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 20, boxShadow: '0 0 30px rgba(168, 85, 247, 0.4)', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: isMobile ? 36 : 48 }}>👑</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: FONTS.mono, fontSize: isMobile ? 9 : 11, letterSpacing: '0.2em', opacity: 0.7 }}>SHADOW MONARCH · {VERSIONS[version].fullLabel.toUpperCase()} · {bracket.year}</div>
+            <div style={{ fontFamily: FONTS.display, fontSize: isMobile ? 28 : 42, letterSpacing: '0.05em', lineHeight: 1 }}>{champion.tag}</div>
+            <div style={{ fontFamily: FONTS.body, fontSize: isMobile ? 12 : 14, marginTop: 4 }}>{champion.name}</div>
           </div>
-          {champElo && <RankBadge elo={champElo} size="lg" />}
+          {champElo && <RankBadge elo={champElo} size={isMobile ? 'md' : 'lg'} />}
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, overflowX: 'auto', minWidth: 760 }}>
-        <BracketCol label="QUARTAS" matches={bracket.qf} round="qf" playerById={playerById} ratingsByVersion={ratingsByVersion} version={version} onAdvance={onAdvance} canEdit={canEdit} spacing={12} />
-        <BracketCol label="SEMIFINAIS" matches={bracket.sf} round="sf" playerById={playerById} ratingsByVersion={ratingsByVersion} version={version} onAdvance={onAdvance} canEdit={canEdit} spacing={70} />
-        <BracketCol label="FINAL" matches={[bracket.final]} round="final" playerById={playerById} ratingsByVersion={ratingsByVersion} version={version} onAdvance={onAdvance} canEdit={canEdit} spacing={170} />
+      {isMobile && (
+        <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, letterSpacing: '0.15em', marginBottom: 8, textAlign: 'center' }}>
+          ← arraste para o lado para ver →
+        </div>
+      )}
+      <div className="kof-scroll-x" style={{ paddingBottom: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: isMobile ? 12 : 24, minWidth: 760 }}>
+          <BracketCol label="QUARTAS" matches={bracket.qf} round="qf" playerById={playerById} ratingsByVersion={ratingsByVersion} version={version} onAdvance={onAdvance} canEdit={canEdit} spacing={12} />
+          <BracketCol label="SEMIFINAIS" matches={bracket.sf} round="sf" playerById={playerById} ratingsByVersion={ratingsByVersion} version={version} onAdvance={onAdvance} canEdit={canEdit} spacing={70} />
+          <BracketCol label="FINAL" matches={[bracket.final]} round="final" playerById={playerById} ratingsByVersion={ratingsByVersion} version={version} onAdvance={onAdvance} canEdit={canEdit} spacing={170} />
+        </div>
       </div>
     </div>
   );
@@ -2140,6 +2572,24 @@ export default function App() {
       .kof-architect-badge { animation: kof-rainbow 4s ease infinite, kof-architect-glow 2s ease-in-out infinite; }
       @keyframes kof-reveal-zoom { 0% { transform: scale(0.5); opacity: 0; } 60% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
       @keyframes kof-fade-bg { from { background: rgba(0,0,0,0); } to { background: rgba(0,0,0,0.92); } }
+
+      /* Responsivo */
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      input, textarea, select, button { font-size: 16px; } /* evita zoom em iOS */
+      .kof-tab-bar::-webkit-scrollbar { display: none; }
+      .kof-tab-bar { scrollbar-width: none; }
+      .kof-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .kof-scroll-x::-webkit-scrollbar { height: 4px; }
+      .kof-scroll-x::-webkit-scrollbar-thumb { background: ${C.border}; }
+
+      @media (max-width: 600px) {
+        .kof-hide-mobile { display: none !important; }
+        .kof-stack-mobile { flex-direction: column !important; }
+      }
+      @media (min-width: 601px) {
+        .kof-show-only-mobile { display: none !important; }
+      }
     `;
     document.head.appendChild(style);
 
@@ -2174,7 +2624,7 @@ export default function App() {
       const ratings = ratingsByVersion[v] || {};
       // Pega o primeiro com ELO >= threshold (ordem cronológica de quem chegou)
       const candidates = players
-        .filter((p) => p.id !== 'admin' && (ratings[p.id]?.elo ?? STARTING_ELO) >= secretRank.min)
+        .filter((p) => isCompetitor(p) && (ratings[p.id]?.elo ?? STARTING_ELO) >= secretRank.min)
         .map((p) => ({ ...p, elo: ratings[p.id].elo, version: v }));
       if (candidates.length > 0) {
         return candidates[0]; // o primeiro detectado em ordem de iteração
@@ -2212,6 +2662,7 @@ export default function App() {
   const handleLogin = async (provider, mockHunter = null) => {
     if (provider === null) { setShowLogin(false); return; } // visitante
     if (mockHunter) {
+      if (mockHunter.isBanned) { alert('Este lutador foi banido da Arena.'); return; }
       setCurrentUserId(mockHunter.id);
       await saveJSON(KEYS.myLogin, mockHunter.id, false);
       setShowLogin(false);
@@ -2219,7 +2670,7 @@ export default function App() {
     }
     // Login social genérico → escolhe primeiro hunter disponível com aquele provider
     // Em produção, isso vira um signInWithOAuth de verdade
-    const candidate = players.find((p) => p.id !== 'admin' && p.authProvider === provider);
+    const candidate = players.find((p) => p.id !== 'admin' && p.authProvider === provider && !p.isBanned);
     if (candidate) {
       setCurrentUserId(candidate.id);
       await saveJSON(KEYS.myLogin, candidate.id, false);
@@ -2251,6 +2702,51 @@ export default function App() {
       alert(`Tag "${patch.tag}" já está em uso.`); return;
     }
     persistPlayers(players.map((p) => p.id === currentUser.id ? { ...p, ...patch } : p));
+  };
+
+  // ─── HANDLERS DE MODERAÇÃO (admin only) ─────────────────
+  const banPlayer = (playerId, reason) => {
+    if (!currentUser?.isAdmin) return;
+    persistPlayers(players.map((p) => p.id === playerId
+      ? { ...p, isBanned: true, banReason: reason || null, bannedAt: new Date().toISOString() }
+      : p));
+  };
+  const unbanPlayer = (playerId) => {
+    if (!currentUser?.isAdmin) return;
+    persistPlayers(players.map((p) => p.id === playerId
+      ? { ...p, isBanned: false, banReason: null, bannedAt: null }
+      : p));
+  };
+  const adminEditProfile = (playerId, patch) => {
+    if (!currentUser?.isAdmin) return;
+    if (patch.tag && players.some((p) => p.id !== playerId && p.tag === patch.tag)) {
+      alert(`Tag "${patch.tag}" já está em uso por outro lutador.`); return;
+    }
+    persistPlayers(players.map((p) => p.id === playerId ? { ...p, ...patch } : p));
+  };
+
+  // EXCLUSÃO PERMANENTE — irreversível, com cautela
+  // Estratégia: marca o perfil como "deletado" em vez de apagar do banco.
+  // Lutas antigas continuam aparecendo, mas com nome '(perfil deletado)'.
+  // O lutador não consegue mais logar, edit perfil, agendar, etc.
+  const deletePlayer = (playerId) => {
+    if (!currentUser?.isAdmin) return;
+    const target = players.find((p) => p.id === playerId);
+    if (!target || target.id === 'admin') return;
+    persistPlayers(players.map((p) => p.id === playerId ? {
+      ...p,
+      isDeleted: true,
+      isBanned: true,           // garante que some das listas
+      tag: 'DELETED',
+      name: '(perfil deletado)',
+      bio: null,
+      avatarUrl: null,
+      email: null,
+      authProvider: null,
+      banReason: null,
+      bannedAt: null,
+      deletedAt: new Date().toISOString(),
+    } : p));
   };
 
   const resetDemo = async () => {
@@ -2288,7 +2784,7 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.text, fontFamily: FONTS.body }}>
       <Header
-        playerCount={players.filter((p) => p.id !== 'admin').length}
+        playerCount={players.filter(isCompetitor).length}
         matchCount={matches.filter((m) => m.status === 'completed').length}
         liveCount={matches.filter((m) => m.status === 'live').length}
         currentUser={currentUser}
@@ -2298,7 +2794,7 @@ export default function App() {
         onDonate={() => setShowDonate(true)}
       />
       {!viewingHunter && <TabBar active={view} onChange={(v) => { setView(v); setViewingHunterId(null); }} user={currentUser} pendingCount={pendingResultsCount} />}
-      <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: 'clamp(12px, 3vw, 24px)', maxWidth: 1400, margin: '0 auto' }}>
         {viewingHunter ? (
           <HunterProfileView hunter={viewingHunter} isOwn={isOwnProfile} players={players} matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onBack={closeHunterView} onOpenHunter={openHunter} onUpdateProfile={updateOwnProfile} />
         ) : (
@@ -2310,7 +2806,7 @@ export default function App() {
             {view === 'mensal' && <RankingView players={players} matches={matches} mode="mensal" onOpenHunter={openHunter} />}
             {view === 'anual' && <RankingView players={players} matches={matches} mode="anual" onOpenHunter={openHunter} />}
             {view === 'campeonato' && <ChampionshipView players={players} matches={matches} ratingsByVersion={ratingsByVersion} isAdmin={isAdmin} onOpenHunter={openHunter} />}
-            {view === 'admin' && isAdmin && <AdminPanel players={players} matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onScheduleMatch={scheduleMatch} onUpdateMatch={updateMatch} onDeleteMatch={deleteMatch} onResetDemo={resetDemo} />}
+            {view === 'admin' && isAdmin && <AdminPanel players={players} matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onScheduleMatch={scheduleMatch} onUpdateMatch={updateMatch} onDeleteMatch={deleteMatch} onResetDemo={resetDemo} onBanPlayer={banPlayer} onUnbanPlayer={unbanPlayer} onAdminEditProfile={adminEditProfile} onDeletePlayer={deletePlayer} />}
           </>
         )}
       </div>
