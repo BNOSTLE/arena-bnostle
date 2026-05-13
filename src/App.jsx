@@ -24,6 +24,31 @@ const PIX_CONFIG = {
   ],
 };
 
+// ─── CONFIGURAÇÃO DE INTEGRAÇÃO COM DISCORD ─────────────────
+// Pra ativar: crie um webhook no seu servidor Discord
+// (Server Settings → Integrations → Webhooks → New Webhook)
+// Copia a URL e cole aqui. Pra desativar: deixa string vazia.
+const DISCORD_WEBHOOK = {
+  url: '', // exemplo: 'https://discord.com/api/webhooks/123456/abcdef'
+  notifyOnScheduled: true,  // posta quando admin agenda novo duelo
+  notifyOnLive: true,       // posta quando admin marca como AO VIVO
+  notifyOnCompleted: true,  // posta resultado quando termina
+};
+
+// Envia mensagem pro Discord via webhook (silencioso se falhar)
+async function notifyDiscord(payload) {
+  if (!DISCORD_WEBHOOK.url) return;
+  try {
+    await fetch(DISCORD_WEBHOOK.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    console.log('Discord webhook falhou:', e);
+  }
+}
+
 const C = {
   bg: '#0E0E10', elevated: '#16161A', panel: '#1A1A20', overlay: '#1F1F25',
   border: '#2A2A30', borderBright: '#3F3F47',
@@ -72,15 +97,17 @@ function VersionBadge({ version, size = 'md' }) {
 }
 
 // ─── RANK SYSTEM ────────────────────────────────────────────
+// Curva progressiva: gaps crescentes pra ranks altos serem conquistas reais
+// Sair de E vai rápido (incentiva iniciantes); chegar em Monarch leva meses
 const RANKS = [
   { id: 'E',  name: 'E-Rank',         min: 0,    color: '#6B7280', glow: false, tier: 1 },
-  { id: 'D',  name: 'D-Rank',         min: 1100, color: '#A16207', glow: false, tier: 2 },
-  { id: 'C',  name: 'C-Rank',         min: 1200, color: '#16A34A', glow: false, tier: 3 },
-  { id: 'B',  name: 'B-Rank',         min: 1300, color: '#2563EB', glow: false, tier: 4 },
-  { id: 'A',  name: 'A-Rank',         min: 1400, color: '#9333EA', glow: false, tier: 5 },
-  { id: 'S',  name: 'S-Rank',         min: 1500, color: '#F59E0B', glow: true,  tier: 6 },
-  { id: 'NL', name: 'National Level', min: 1650, color: '#DC2626', glow: true,  tier: 7 },
-  { id: 'MO', name: 'Monarch',        min: 1850, color: '#A855F7', glow: true,  tier: 8 },
+  { id: 'D',  name: 'D-Rank',         min: 1100, color: '#A16207', glow: false, tier: 2 }, // +100
+  { id: 'C',  name: 'C-Rank',         min: 1250, color: '#16A34A', glow: false, tier: 3 }, // +150
+  { id: 'B',  name: 'B-Rank',         min: 1450, color: '#2563EB', glow: false, tier: 4 }, // +200
+  { id: 'A',  name: 'A-Rank',         min: 1700, color: '#9333EA', glow: false, tier: 5 }, // +250
+  { id: 'S',  name: 'S-Rank',         min: 2000, color: '#F59E0B', glow: true,  tier: 6 }, // +300
+  { id: 'NL', name: 'National Level', min: 2400, color: '#DC2626', glow: true,  tier: 7 }, // +400
+  { id: 'MO', name: 'Monarch',        min: 2900, color: '#A855F7', glow: true,  tier: 8 }, // +500
   // ────────────────────────────────────────────────────────────
   // 🤫 RANK SECRETO — NÃO COMENTE COM NINGUÉM
   // The Architect — referência ao criador do Sistema em Solo Leveling.
@@ -93,7 +120,36 @@ const RANKS = [
   { id: 'AR', name: 'The Architect', min: 100000, color: '#FFD700', glow: true, tier: 9, secret: true },
 ];
 const STARTING_ELO = 1000;
-const K_FACTOR = 32;
+const K_FACTOR = 24; // reduzido de 32 → 24: rankings mais estáveis, menos oscilação por partida
+
+// ─── PERSONAGENS KOF 2002/UM ────────────────────────────────
+// Lista de personagens jogáveis pra escolher mains no perfil
+const KOF_CHARACTERS = [
+  // Hero Team
+  'Kyo Kusanagi', 'Benimaru Nikaido', 'Goro Daimon',
+  // Fatal Fury Team
+  'Terry Bogard', 'Andy Bogard', 'Joe Higashi',
+  // Art of Fighting Team
+  'Ryo Sakazaki', 'Robert Garcia', 'Takuma Sakazaki',
+  // Ikari Warriors Team
+  'Leona Heidern', 'Ralf Jones', 'Clark Still',
+  // Psycho Soldier Team
+  'Athena Asamiya', 'Sie Kensou', 'Chin Gentsai',
+  // Women Fighters Team
+  'Mai Shiranui', 'Yuri Sakazaki', 'King',
+  // K\' Team
+  'K\'', 'Maxima', 'Vanessa', 'Ramon',
+  // Korea Team
+  'Kim Kaphwan', 'Chang Koehan', 'Choi Bounge', 'Jhun Hoon',
+  // Outros
+  'Iori Yagami', 'Mature', 'Vice', 'Yashiro Nanakase', 'Shermie', 'Chris',
+  'Kula Diamond', 'K9999', 'Angel', 'May Lee', 'Hinako Shijou',
+  'Bao', 'Lin', 'Seth', 'Kusanagi',
+  // Bosses
+  'Rugal Bernstein', 'Goenitz', 'Krizalid', 'Orochi', 'Igniz', 'Zero', 'Original Zero',
+  // UM extras
+  'Geese Howard', 'Mr. Karate', 'Iori (Flames)', 'EX Kyo', 'EX Iori',
+];
 
 function getRank(elo) {
   for (let i = RANKS.length - 1; i >= 0; i--) if (elo >= RANKS[i].min) return RANKS[i];
@@ -189,6 +245,9 @@ const KEYS = {
   seeded: 'arena:seeded:v5',
   myLogin: 'arena:my_login:v5',  // local, simula sessão
   architectRevealSeen: 'arena:architect_seen:v5', // local: já vi o reveal?
+  comments: (matchId) => `arena:comments:${matchId}:v5`,
+  follows: 'arena:follows:v5', // lista de IDs seguidos (local)
+  news: 'arena:news:v5', // posts/notícias do admin
 };
 async function loadJSON(key, fallback, shared = true) {
   try { const r = await window.storage.get(key, shared); return r && r.value ? JSON.parse(r.value) : fallback; }
@@ -1082,6 +1141,7 @@ function tabsForUser(user) {
     { id: 'mensal', label: 'RANKING MENSAL', n: '04' },
     { id: 'anual', label: 'RANKING ANUAL', n: '05' },
     { id: 'campeonato', label: 'CAMPEONATO', n: '06' },
+    { id: 'noticias', label: 'NOTÍCIAS', n: '07' },
   ];
   if (user?.isAdmin) base.push({ id: 'admin', label: '⚡ PAINEL ADMIN', n: 'A1', admin: true });
   return base;
@@ -1111,7 +1171,7 @@ function TabBar({ active, onChange, user, pendingCount }) {
 // ═══════════════════════════════════════════════════════════
 // SCHEDULED ROW
 // ═══════════════════════════════════════════════════════════
-function ScheduledRow({ match, playerById, ratingsByVersion, expanded, onClickHunter }) {
+function ScheduledRow({ match, playerById, ratingsByVersion, expanded, onClickHunter, onClickMatch }) {
   const p1 = playerById[match.player1Id], p2 = playerById[match.player2Id];
   const e1 = ratingsByVersion[match.version]?.[match.player1Id]?.elo ?? STARTING_ELO;
   const e2 = ratingsByVersion[match.version]?.[match.player2Id]?.elo ?? STARTING_ELO;
@@ -1145,13 +1205,24 @@ function ScheduledRow({ match, playerById, ratingsByVersion, expanded, onClickHu
         {match.notes && expanded && <span style={{ color: C.muted, fontFamily: FONTS.body, fontSize: 11, fontStyle: 'italic' }}>"{match.notes}"</span>}
         {(isLive || match.vodUrl) && (
           <div style={{ display: 'flex', gap: 6 }}>
-            {isLive && match.streamUrl && (
-              <a href={match.streamUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: '#fff', background: C.red, textDecoration: 'none', padding: '6px 12px', letterSpacing: '0.1em', flex: 1, justifyContent: 'center' }}>● ASSISTIR LIVE</a>
+            {isLive && (
+              onClickMatch ? (
+                <button onClick={() => onClickMatch(match.id)} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: '#fff', background: C.red, border: 'none', padding: '6px 12px', letterSpacing: '0.1em', cursor: 'pointer', justifyContent: 'center' }}>● ASSISTIR LIVE</button>
+              ) : match.streamUrl ? (
+                <a href={match.streamUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: '#fff', background: C.red, textDecoration: 'none', padding: '6px 12px', letterSpacing: '0.1em', flex: 1, justifyContent: 'center' }}>● ASSISTIR LIVE</a>
+              ) : null
             )}
             {match.vodUrl && (
-              <a href={match.vodUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: C.red, textDecoration: 'none', border: `1px solid ${C.red}`, padding: '6px 12px', letterSpacing: '0.1em', flex: 1, justifyContent: 'center' }}>▶ VER VOD</a>
+              onClickMatch ? (
+                <button onClick={() => onClickMatch(match.id)} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: C.red, background: 'transparent', border: `1px solid ${C.red}`, padding: '6px 12px', letterSpacing: '0.1em', cursor: 'pointer', justifyContent: 'center' }}>▶ VER VOD</button>
+              ) : (
+                <a href={match.vodUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: C.red, textDecoration: 'none', border: `1px solid ${C.red}`, padding: '6px 12px', letterSpacing: '0.1em', flex: 1, justifyContent: 'center' }}>▶ VER VOD</a>
+              )
             )}
           </div>
+        )}
+        {isPast && !match.vodUrl && onClickMatch && (
+          <button onClick={() => onClickMatch(match.id)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, padding: '6px 12px', fontFamily: FONTS.mono, fontSize: 11, letterSpacing: '0.1em', cursor: 'pointer' }}>VER DETALHES →</button>
         )}
       </div>
     );
@@ -1180,11 +1251,22 @@ function ScheduledRow({ match, playerById, ratingsByVersion, expanded, onClickHu
         {match.notes && expanded && <span style={{ color: C.muted, fontFamily: FONTS.body, fontSize: 12, fontStyle: 'italic', flexBasis: '100%', marginTop: 4 }}>"{match.notes}"</span>}
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
-        {isLive && match.streamUrl && (
-          <a href={match.streamUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: '#fff', background: C.red, textDecoration: 'none', padding: '5px 10px', letterSpacing: '0.1em' }}>● LIVE</a>
+        {isLive && (
+          onClickMatch ? (
+            <button onClick={() => onClickMatch(match.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: '#fff', background: C.red, border: 'none', padding: '5px 10px', letterSpacing: '0.1em', cursor: 'pointer' }}>● LIVE</button>
+          ) : match.streamUrl ? (
+            <a href={match.streamUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: '#fff', background: C.red, textDecoration: 'none', padding: '5px 10px', letterSpacing: '0.1em' }}>● LIVE</a>
+          ) : null
         )}
         {match.vodUrl && (
-          <a href={match.vodUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: C.red, textDecoration: 'none', border: `1px solid ${C.red}`, padding: '5px 10px', letterSpacing: '0.1em' }}>▶ VOD</a>
+          onClickMatch ? (
+            <button onClick={() => onClickMatch(match.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: C.red, background: 'transparent', border: `1px solid ${C.red}`, padding: '5px 10px', letterSpacing: '0.1em', cursor: 'pointer' }}>▶ VOD</button>
+          ) : (
+            <a href={match.vodUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 11, color: C.red, textDecoration: 'none', border: `1px solid ${C.red}`, padding: '5px 10px', letterSpacing: '0.1em' }}>▶ VOD</a>
+          )
+        )}
+        {isPast && !match.vodUrl && onClickMatch && (
+          <button onClick={() => onClickMatch(match.id)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, padding: '5px 10px', fontFamily: FONTS.mono, fontSize: 11, letterSpacing: '0.1em', cursor: 'pointer' }}>VER →</button>
         )}
       </div>
     </div>
@@ -1233,7 +1315,7 @@ function ArchitectBanner({ architect, onClick }) {
   );
 }
 
-function HomeView({ players, matches, ratingsByVersion, playerById, onNavigate, onOpenHunter, architect }) {
+function HomeView({ players, matches, ratingsByVersion, playerById, onNavigate, onOpenHunter, onOpenMatch, architect }) {
   const liveMatch = matches.find((m) => m.status === 'live');
   const upcoming = matches.filter((m) => m.status === 'scheduled' && new Date(m.scheduledAt) > new Date()).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
   const recentVods = matches.filter((m) => m.status === 'completed' && m.vodUrl).sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)).slice(0, 3);
@@ -1264,7 +1346,7 @@ function HomeView({ players, matches, ratingsByVersion, playerById, onNavigate, 
         <Panel title="PRÓXIMOS DUELOS" accent={C.amber} action={<Btn variant="ghost" size="sm" onClick={() => onNavigate('agenda')}>VER AGENDA →</Btn>}>
           {upcoming.length === 0 ? <Empty msg="Nenhum duelo agendado." /> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {upcoming.slice(0, 4).map((m) => <ScheduledRow key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onClickHunter={onOpenHunter} />)}
+              {upcoming.slice(0, 4).map((m) => <ScheduledRow key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onClickHunter={onOpenHunter} onClickMatch={onOpenMatch} />)}
             </div>
           )}
         </Panel>
@@ -1386,7 +1468,7 @@ function HunterFace({ p, elo, onClick, compact }) {
 // ═══════════════════════════════════════════════════════════
 // VIEW: AGENDA
 // ═══════════════════════════════════════════════════════════
-function AgendaView({ matches, ratingsByVersion, playerById, onOpenHunter }) {
+function AgendaView({ matches, ratingsByVersion, playerById, onOpenHunter, onOpenMatch }) {
   const [filter, setFilter] = useState('upcoming');
   const [versionFilter, setVersionFilter] = useState('all');
   const now = new Date();
@@ -1421,7 +1503,7 @@ function AgendaView({ matches, ratingsByVersion, playerById, onOpenHunter }) {
       </div>
       {filtered.length === 0 ? <Panel><Empty msg="Nenhum duelo neste filtro." /></Panel> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filtered.map((m) => <ScheduledRow key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} expanded onClickHunter={onOpenHunter} />)}
+          {filtered.map((m) => <ScheduledRow key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} expanded onClickHunter={onOpenHunter} onClickMatch={onOpenMatch} />)}
         </div>
       )}
     </div>
@@ -1431,7 +1513,7 @@ function AgendaView({ matches, ratingsByVersion, playerById, onOpenHunter }) {
 // ═══════════════════════════════════════════════════════════
 // VIEW: VODS
 // ═══════════════════════════════════════════════════════════
-function VodsView({ matches, playerById, ratingsByVersion, onOpenHunter }) {
+function VodsView({ matches, playerById, ratingsByVersion, onOpenHunter, onOpenMatch }) {
   const vods = useMemo(() => matches.filter((m) => m.status === 'completed' && m.vodUrl).sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)), [matches]);
   if (vods.length === 0) return <Panel title="LUTAS TRANSMITIDAS" accent={C.red}><Empty msg="Nenhuma luta transmitida ainda." /></Panel>;
   return (
@@ -1566,15 +1648,408 @@ function VersionEloCell({ version, elo, w, l }) {
   );
 }
 
+// ─── CHARACTER PICKER (mains do perfil) ─────────────────────
+function CharacterPicker({ selected, onChange, max = 3 }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const filtered = useMemo(() =>
+    KOF_CHARACTERS.filter((c) => c.toLowerCase().includes(search.toLowerCase().trim())),
+  [search]);
+
+  const toggle = (char) => {
+    if (selected.includes(char)) {
+      onChange(selected.filter((c) => c !== char));
+    } else if (selected.length < max) {
+      onChange([...selected, char]);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ background: C.bg, border: `1px solid ${C.border}`, padding: 8, minHeight: 44, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', cursor: 'pointer' }}
+        onClick={() => setOpen((v) => !v)}>
+        {selected.length === 0 ? (
+          <span style={{ color: C.dim, fontFamily: FONTS.body, fontSize: 13, padding: '2px 6px' }}>clique pra escolher…</span>
+        ) : (
+          selected.map((c) => (
+            <span key={c} style={{ background: C.elevated, border: `1px solid ${C.amber}`, color: C.amber, padding: '4px 10px', fontFamily: FONTS.mono, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              onClick={(e) => { e.stopPropagation(); toggle(c); }}>
+              {c} <span style={{ opacity: 0.6 }}>×</span>
+            </span>
+          ))
+        )}
+        <span style={{ marginLeft: 'auto', color: C.muted, fontFamily: FONTS.mono, fontSize: 11 }}>{selected.length}/{max} {open ? '▴' : '▾'}</span>
+      </div>
+      {open && (
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderTop: 'none', padding: 10, maxHeight: 240, overflowY: 'auto' }}>
+          <Input value={search} onChange={setSearch} placeholder="buscar personagem…" />
+          <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {filtered.map((c) => {
+              const isSelected = selected.includes(c);
+              const isDisabled = !isSelected && selected.length >= max;
+              return (
+                <button key={c} type="button" disabled={isDisabled} onClick={() => toggle(c)}
+                  style={{ background: isSelected ? C.amber : 'transparent', color: isSelected ? '#0A0A0A' : (isDisabled ? C.dim : C.text), border: `1px solid ${isSelected ? C.amber : C.border}`, padding: '4px 10px', fontFamily: FONTS.body, fontSize: 12, cursor: isDisabled ? 'not-allowed' : 'pointer', opacity: isDisabled ? 0.4 : 1 }}>
+                  {c}
+                </button>
+              );
+            })}
+            {filtered.length === 0 && <span style={{ color: C.dim, fontStyle: 'italic', padding: 8 }}>Nenhum personagem encontrado.</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// MATCH DETAIL VIEW — player embedado + dados completos da luta
+// ═══════════════════════════════════════════════════════════
+function MatchDetailView({ match, players, matches, playerById, ratingsByVersion, isAdmin, currentUser, onBack, onOpenHunter, onUpdateMatch, onDeleteMatch }) {
+  const isMobile = useIsMobile();
+  const [showShare, setShowShare] = useState(false);
+
+  const p1 = playerById[match.player1Id];
+  const p2 = playerById[match.player2Id];
+  const v = VERSIONS[match.version];
+
+  // ELO atual dos lutadores na versão da luta
+  const e1Now = ratingsByVersion[match.version]?.[match.player1Id]?.elo ?? STARTING_ELO;
+  const e2Now = ratingsByVersion[match.version]?.[match.player2Id]?.elo ?? STARTING_ELO;
+  const r1 = getRank(e1Now);
+  const r2 = getRank(e2Now);
+
+  // Decidir qual URL embedar: stream se ao vivo, VOD se concluída
+  const isLive = match.status === 'live';
+  const isPast = match.status === 'completed';
+  const embedUrl = isLive && match.streamUrl ? streamEmbedUrl(match.streamUrl) :
+                   match.vodUrl ? streamEmbedUrl(match.vodUrl) : null;
+  const externalUrl = isLive ? match.streamUrl : match.vodUrl;
+
+  // Histórico head-to-head entre os 2 lutadores (versão da luta)
+  const h2h = useMemo(() => {
+    const others = matches.filter((m) =>
+      m.id !== match.id &&
+      m.version === match.version &&
+      m.status === 'completed' &&
+      m.winnerId &&
+      ((m.player1Id === p1?.id && m.player2Id === p2?.id) ||
+       (m.player1Id === p2?.id && m.player2Id === p1?.id))
+    );
+    let w1 = 0, w2 = 0;
+    for (const m of others) {
+      if (m.winnerId === p1?.id) w1++;
+      else if (m.winnerId === p2?.id) w2++;
+    }
+    return { w1, w2, total: others.length, matches: others.sort((a, b) => new Date(b.completedAt || b.scheduledAt) - new Date(a.completedAt || a.scheduledAt)) };
+  }, [match, matches, p1, p2]);
+
+  const winner = match.winnerId === p1?.id ? p1 : match.winnerId === p2?.id ? p2 : null;
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/?luta=${match.id}` : '';
+
+  if (!p1 || !p2) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <Btn variant="ghost" onClick={onBack}>← VOLTAR</Btn>
+        <Empty msg="Luta não encontrada." />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <Btn variant="ghost" size="sm" onClick={onBack}>← VOLTAR</Btn>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <StatusBadge status={match.status} />
+          <VersionBadge version={match.version} size="md" />
+          <Btn variant="ghost" size="sm" onClick={() => setShowShare(true)}>📤 COMPARTILHAR</Btn>
+        </div>
+      </div>
+
+      {/* Player embedado */}
+      {embedUrl ? (
+        <div style={{ background: '#000', aspectRatio: '16/9', position: 'relative', border: `1px solid ${isLive ? C.red : C.border}` }}>
+          <iframe src={embedUrl} title={`${p1.tag} vs ${p2.tag}`} frameBorder="0" allowFullScreen
+            allow="autoplay; encrypted-media; picture-in-picture"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+          {isLive && (
+            <div style={{ position: 'absolute', top: 12, left: 12, background: C.red, color: '#fff', padding: '4px 10px', fontFamily: FONTS.mono, fontSize: 11, letterSpacing: '0.15em', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 6, height: 6, background: '#fff', borderRadius: '50%', animation: 'kof-pulse 1s infinite' }} />AO VIVO
+            </div>
+          )}
+        </div>
+      ) : externalUrl ? (
+        <div style={{ background: C.elevated, border: `1px dashed ${C.border}`, padding: 32, textAlign: 'center' }}>
+          <div style={{ fontFamily: FONTS.body, fontSize: 14, color: C.muted, marginBottom: 12 }}>
+            O player embedado não está disponível pra essa URL.
+          </div>
+          <a href={externalUrl} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'inline-block', background: C.red, color: '#fff', padding: '10px 20px', textDecoration: 'none', fontFamily: FONTS.display, fontSize: 14, letterSpacing: '0.1em' }}>
+            ▶ ASSISTIR EM {streamPlatform(externalUrl).toUpperCase()}
+          </a>
+        </div>
+      ) : (
+        <div style={{ background: C.elevated, border: `1px dashed ${C.border}`, padding: 32, textAlign: 'center', fontFamily: FONTS.body, fontSize: 13, color: C.muted }}>
+          {match.status === 'scheduled' ? '⏳ Duelo agendado. Player aparece quando começar a transmissão.' : '📺 Sem VOD disponível pra essa luta.'}
+        </div>
+      )}
+
+      {/* Hero dos 2 lutadores */}
+      <div style={{ background: C.elevated, border: `1px solid ${C.border}`, padding: 'clamp(16px, 4vw, 24px)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto 1fr', gap: 'clamp(12px, 3vw, 24px)', alignItems: 'center' }}>
+          <MatchDetailFighter player={p1} elo={e1Now} rank={r1} isWinner={winner?.id === p1.id} isLoser={isPast && winner?.id === p2.id} side="left" isMobile={isMobile} onClick={() => onOpenHunter(p1.id)} />
+          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontFamily: FONTS.display, fontSize: isMobile ? 36 : 56, color: C.amber, letterSpacing: '0.1em', lineHeight: 0.9 }}>VS</div>
+            {match.score && <div style={{ fontFamily: FONTS.mono, fontSize: isMobile ? 16 : 22, color: C.text, letterSpacing: '0.1em' }}>{match.score}</div>}
+          </div>
+          <MatchDetailFighter player={p2} elo={e2Now} rank={r2} isWinner={winner?.id === p2.id} isLoser={isPast && winner?.id === p1.id} side="right" isMobile={isMobile} onClick={() => onOpenHunter(p2.id)} />
+        </div>
+      </div>
+
+      {/* Dados da luta */}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+        <InfoCard label="DATA / HORA" value={fmtDateTime(match.scheduledAt)} sub={fmtRelative(match.scheduledAt)} />
+        <InfoCard label="VERSÃO" value={v?.fullLabel || match.version} accent={v?.color} />
+        {match.completedAt && <InfoCard label="CONCLUÍDA EM" value={fmtDateTime(match.completedAt)} />}
+        {winner && <InfoCard label="VENCEDOR" value={winner.tag} accent={C.green} />}
+      </div>
+
+      {/* Notas */}
+      {match.notes && (
+        <div style={{ background: C.elevated, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.amber}`, padding: 14 }}>
+          <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.amber, letterSpacing: '0.15em', marginBottom: 6 }}>NOTAS DO ADMIN</div>
+          <div style={{ fontFamily: FONTS.body, fontSize: 14, color: C.text, fontStyle: 'italic' }}>"{match.notes}"</div>
+        </div>
+      )}
+
+      {/* Head-to-head */}
+      {h2h.total > 0 && (
+        <Panel title={`HISTÓRICO ENTRE OS DOIS · ${v?.label}`} accent={C.amber}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, padding: '12px 0 16px', borderBottom: `1px solid ${C.border}`, marginBottom: 12 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: FONTS.display, fontSize: 36, color: h2h.w1 > h2h.w2 ? C.green : (h2h.w1 < h2h.w2 ? C.red : C.text), letterSpacing: '0.05em', lineHeight: 1 }}>{h2h.w1}</div>
+              <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, marginTop: 4 }}>{p1.tag}</div>
+            </div>
+            <span style={{ fontFamily: FONTS.display, fontSize: 24, color: C.dim }}>×</span>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: FONTS.display, fontSize: 36, color: h2h.w2 > h2h.w1 ? C.green : (h2h.w2 < h2h.w1 ? C.red : C.text), letterSpacing: '0.05em', lineHeight: 1 }}>{h2h.w2}</div>
+              <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, marginTop: 4 }}>{p2.tag}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {h2h.matches.slice(0, 5).map((m) => (
+              <ScheduledRow key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onClickHunter={onOpenHunter} onClickMatch={onOpenMatch} />
+            ))}
+          </div>
+        </Panel>
+      )}
+
+      {/* Painel admin inline */}
+      {isAdmin && (match.status === 'scheduled' || match.status === 'live') && (
+        <Panel title="CONTROLES ADMIN" accent={C.purple}>
+          <AdminMatchEditor match={match} playerById={playerById} ratingsByVersion={ratingsByVersion} onUpdate={onUpdateMatch} onDelete={onDeleteMatch} />
+        </Panel>
+      )}
+
+      {/* Comentários */}
+      <CommentsSection matchId={match.id} currentUser={currentUser} playerById={playerById} />
+
+      {showShare && <ShareModal url={shareUrl} title={`${p1.tag} vs ${p2.tag} — ARENA BNOSTLE`} onClose={() => setShowShare(false)} />}
+    </div>
+  );
+}
+
+function CommentsSection({ matchId, currentUser, playerById }) {
+  const [comments, setComments] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  // Carregar comentários do storage
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await window.storage.get(KEYS.comments(matchId));
+        const data = res?.value ? JSON.parse(res.value) : [];
+        if (mounted) setComments(data);
+      } catch {
+        if (mounted) setComments([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [matchId]);
+
+  const saveAll = async (next) => {
+    setComments(next);
+    try { await window.storage.set(KEYS.comments(matchId), JSON.stringify(next)); } catch {}
+  };
+
+  const submit = () => {
+    if (!draft.trim() || !currentUser) return;
+    const newComment = {
+      id: `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      authorId: currentUser.id,
+      authorTag: currentUser.tag,
+      authorIsAdmin: !!currentUser.isAdmin,
+      text: draft.trim().slice(0, 500),
+      createdAt: new Date().toISOString(),
+    };
+    saveAll([newComment, ...comments]);
+    setDraft('');
+  };
+
+  const remove = (id) => {
+    if (!currentUser) return;
+    const c = comments.find((x) => x.id === id);
+    if (!c) return;
+    // só autor ou admin podem deletar
+    if (c.authorId !== currentUser.id && !currentUser.isAdmin) return;
+    if (!confirm('Apagar este comentário?')) return;
+    saveAll(comments.filter((x) => x.id !== id));
+  };
+
+  return (
+    <Panel title={`COMENTÁRIOS · ${comments.length}`} accent={C.cyan}>
+      {currentUser ? (
+        <div style={{ marginBottom: 16 }}>
+          <Textarea value={draft} onChange={setDraft} placeholder="Comente sobre a luta..." rows={2} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+            <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted }}>{draft.length}/500</span>
+            <Btn variant="cyan" size="sm" onClick={submit} disabled={!draft.trim()}>COMENTAR</Btn>
+          </div>
+        </div>
+      ) : (
+        <div style={{ background: C.bg, border: `1px dashed ${C.border}`, padding: 12, marginBottom: 16, fontFamily: FONTS.body, fontSize: 13, color: C.muted, textAlign: 'center' }}>
+          Faça login pra comentar.
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ padding: 12, fontFamily: FONTS.mono, fontSize: 11, color: C.muted, textAlign: 'center' }}>carregando...</div>
+      ) : comments.length === 0 ? (
+        <Empty msg="Nenhum comentário ainda. Seja o primeiro!" />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {comments.map((c) => {
+            const author = playerById[c.authorId];
+            const canDelete = currentUser && (currentUser.id === c.authorId || currentUser.isAdmin);
+            return (
+              <div key={c.id} style={{ background: C.bg, border: `1px solid ${C.border}`, padding: 12, display: 'flex', gap: 12 }}>
+                {author && <Avatar player={author} size={32} />}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: FONTS.display, fontSize: 14, color: c.authorIsAdmin ? C.purple : C.amber, letterSpacing: '0.05em' }}>{c.authorTag}</span>
+                    {c.authorIsAdmin && <span style={{ fontFamily: FONTS.mono, fontSize: 9, color: C.purple, border: `1px solid ${C.purple}`, padding: '1px 5px', letterSpacing: '0.15em' }}>ADMIN</span>}
+                    <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted }}>{fmtRelative(c.createdAt)}</span>
+                    {canDelete && (
+                      <button onClick={() => remove(c.id)} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 14, padding: 0, marginLeft: 'auto' }}>×</button>
+                    )}
+                  </div>
+                  <div style={{ fontFamily: FONTS.body, fontSize: 14, color: C.text, lineHeight: 1.5, wordBreak: 'break-word' }}>{c.text}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function MatchDetailFighter({ player, elo, rank, isWinner, isLoser, side, isMobile, onClick }) {
+  return (
+    <div onClick={onClick} style={{
+      display: 'flex', flexDirection: isMobile ? 'row' : 'column', alignItems: 'center', gap: 12,
+      textAlign: isMobile ? 'left' : 'center', cursor: 'pointer',
+      opacity: isLoser ? 0.5 : 1,
+      padding: 12,
+      border: `1px solid ${isWinner ? C.amber : 'transparent'}`,
+      background: isWinner ? C.amber + '15' : 'transparent',
+    }}>
+      <Avatar player={player} size={isMobile ? 56 : 80} />
+      <div style={{ flex: isMobile ? 1 : 'initial', minWidth: 0 }}>
+        <div style={{ fontFamily: FONTS.display, fontSize: isMobile ? 22 : 32, color: rank.color, letterSpacing: '0.05em', lineHeight: 1 }}>{player.tag}</div>
+        <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 2 }}>{player.name}</div>
+        <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: rank.color, marginTop: 6 }}>{rank.id} · {elo} ELO</div>
+        {isWinner && <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.amber, letterSpacing: '0.15em', marginTop: 6 }}>★ VENCEDOR</div>}
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const config = {
+    scheduled: { label: 'AGENDADO', color: C.amber },
+    live: { label: 'AO VIVO', color: C.red },
+    completed: { label: 'CONCLUÍDO', color: C.green },
+  }[status] || { label: status?.toUpperCase() || '—', color: C.muted };
+  return (
+    <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: config.color, border: `1px solid ${config.color}`, padding: '4px 10px', letterSpacing: '0.2em' }}>
+      {config.label}
+    </span>
+  );
+}
+
+function InfoCard({ label, value, sub, accent }) {
+  return (
+    <div style={{ background: C.elevated, border: `1px solid ${C.border}`, borderLeft: `3px solid ${accent || C.border}`, padding: '12px 14px' }}>
+      <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, letterSpacing: '0.15em', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontFamily: FONTS.display, fontSize: 18, color: accent || C.text, letterSpacing: '0.03em' }}>{value}</div>
+      {sub && <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, marginTop: 4 }}>{sub}</div>}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════
 // LUTADOR PROFILE (public + own)
 // ═══════════════════════════════════════════════════════════
-function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, playerById, onBack, onOpenHunter, onUpdateProfile }) {
+function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, playerById, currentUser, onBack, onOpenHunter, onOpenMatch, onUpdateProfile }) {
   const isMobileProfile = useIsMobile();
   const [showShare, setShowShare] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [follows, setFollows] = useState([]); // IDs seguidos pelo currentUser
+
+  // Carrega lista de seguidos
+  useEffect(() => {
+    if (!currentUser) { setFollows([]); return; }
+    (async () => {
+      try {
+        const res = await window.storage.get(KEYS.follows);
+        const data = res?.value ? JSON.parse(res.value) : {};
+        setFollows(data[currentUser.id] || []);
+      } catch { setFollows([]); }
+    })();
+  }, [currentUser]);
+
+  const toggleFollow = async (targetId) => {
+    if (!currentUser) return;
+    try {
+      const res = await window.storage.get(KEYS.follows);
+      const data = res?.value ? JSON.parse(res.value) : {};
+      const myList = data[currentUser.id] || [];
+      const next = myList.includes(targetId) ? myList.filter((id) => id !== targetId) : [...myList, targetId];
+      data[currentUser.id] = next;
+      await window.storage.set(KEYS.follows, JSON.stringify(data));
+      setFollows(next);
+    } catch (e) { console.error(e); }
+  };
+
+  const isFollowing = follows.includes(hunter.id);
   const [draft, setDraft] = useState(() => ({
-    tag: hunter.tag, name: hunter.name, bio: hunter.bio || '', avatarUrl: hunter.avatarUrl || ''
+    tag: hunter.tag,
+    name: hunter.name,
+    bio: hunter.bio || '',
+    avatarUrl: hunter.avatarUrl || '',
+    city: hunter.city || '',
+    platform: hunter.platform || '',
+    mains2002: hunter.mains2002 || [],
+    mainsUm: hunter.mainsUm || [],
+    twitch: hunter.twitch || '',
+    youtube: hunter.youtube || '',
+    discord: hunter.discord || '',
   }));
   const [activeVersion, setActiveVersion] = useState('2002');
 
@@ -1582,6 +2057,76 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
   const stats = ratingsByVersion[activeVersion]?.[hunter.id] || { elo: STARTING_ELO, w: 0, l: 0 };
   const rank = getRank(stats.elo);
   const next = nextRankInfo(stats.elo);
+
+  // HEAD-TO-HEAD: confrontos do hunter contra cada oponente (na versão ativa)
+  const headToHead = useMemo(() => {
+    const map = {}; // opponentId -> { wins, losses }
+    for (const m of matches) {
+      if (m.version !== activeVersion || m.status !== 'completed' || !m.winnerId) continue;
+      if (m.player1Id !== hunter.id && m.player2Id !== hunter.id) continue;
+      const oppId = m.player1Id === hunter.id ? m.player2Id : m.player1Id;
+      if (!map[oppId]) map[oppId] = { wins: 0, losses: 0, last: null };
+      if (m.winnerId === hunter.id) map[oppId].wins++;
+      else map[oppId].losses++;
+      const md = m.completedAt || m.scheduledAt;
+      if (!map[oppId].last || new Date(md) > new Date(map[oppId].last)) map[oppId].last = md;
+    }
+    return Object.entries(map)
+      .map(([oppId, data]) => ({ oppId, opp: playerById[oppId], ...data, total: data.wins + data.losses }))
+      .filter((h) => h.opp)
+      .sort((a, b) => b.total - a.total || new Date(b.last) - new Date(a.last))
+      .slice(0, 8);
+  }, [hunter.id, activeVersion, matches, playerById]);
+
+  // ESTATÍSTICAS DETALHADAS: streaks, win rate, performance recente
+  const detailedStats = useMemo(() => {
+    const sorted = matches
+      .filter((m) => (m.player1Id === hunter.id || m.player2Id === hunter.id) &&
+                     m.version === activeVersion && m.status === 'completed' && m.winnerId)
+      .sort((a, b) => new Date(a.completedAt || a.scheduledAt) - new Date(b.completedAt || b.scheduledAt));
+
+    let currentStreak = 0;
+    let currentStreakType = null; // 'W' or 'L'
+    let bestWinStreak = 0;
+    let bestLossStreak = 0;
+    let tempW = 0, tempL = 0;
+    const byMonth = {}; // 'YYYY-MM' -> {w, l}
+
+    for (const m of sorted) {
+      const won = m.winnerId === hunter.id;
+      // monthly
+      const d = new Date(m.completedAt || m.scheduledAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!byMonth[key]) byMonth[key] = { w: 0, l: 0 };
+      if (won) byMonth[key].w++; else byMonth[key].l++;
+      // streaks
+      if (won) {
+        tempW++; tempL = 0;
+        if (tempW > bestWinStreak) bestWinStreak = tempW;
+      } else {
+        tempL++; tempW = 0;
+        if (tempL > bestLossStreak) bestLossStreak = tempL;
+      }
+    }
+    // current streak = no fim do sorted
+    if (sorted.length > 0) {
+      const lastWon = sorted[sorted.length - 1].winnerId === hunter.id;
+      currentStreakType = lastWon ? 'W' : 'L';
+      currentStreak = lastWon ? tempW : tempL;
+    }
+
+    const last10 = sorted.slice(-10).reverse(); // pega últimas 10, mais recente primeiro
+    const last10Won = last10.filter((m) => m.winnerId === hunter.id).length;
+
+    const months = Object.entries(byMonth).map(([k, v]) => ({
+      month: k,
+      ...v,
+      total: v.w + v.l,
+      wr: v.w + v.l > 0 ? Math.round(v.w / (v.w + v.l) * 100) : 0,
+    })).sort((a, b) => a.month.localeCompare(b.month));
+
+    return { currentStreak, currentStreakType, bestWinStreak, bestLossStreak, last10, last10Won, byMonth: months, totalMatches: sorted.length };
+  }, [hunter.id, activeVersion, matches]);
   const myMatches = matches.filter((m) => (m.player1Id === hunter.id || m.player2Id === hunter.id) && m.status === 'completed' && m.version === activeVersion)
     .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)).slice(0, 10);
   const winRate = stats.w + stats.l > 0 ? Math.round((stats.w / (stats.w + stats.l)) * 100) : 0;
@@ -1590,7 +2135,19 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
   const save = () => {
     const newTag = draft.tag.toUpperCase().slice(0, 6);
     if (newTag.length < 2) { alert('Tag precisa ter no mínimo 2 letras.'); return; }
-    onUpdateProfile({ tag: newTag, name: draft.name.trim(), bio: draft.bio.trim() || null, avatarUrl: draft.avatarUrl.trim() || null });
+    onUpdateProfile({
+      tag: newTag,
+      name: draft.name.trim(),
+      bio: draft.bio.trim() || null,
+      avatarUrl: draft.avatarUrl.trim() || null,
+      city: draft.city.trim() || null,
+      platform: draft.platform.trim() || null,
+      mains2002: draft.mains2002.length ? draft.mains2002 : null,
+      mainsUm: draft.mainsUm.length ? draft.mainsUm : null,
+      twitch: draft.twitch.trim() || null,
+      youtube: draft.youtube.trim() || null,
+      discord: draft.discord.trim() || null,
+    });
     setEditing(false);
   };
 
@@ -1600,6 +2157,11 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
         <Btn variant="ghost" size="sm" onClick={onBack}>← VOLTAR</Btn>
         <div style={{ display: 'flex', gap: 8 }}>
           {isOwn && !editing && <Btn variant="cyan" size="sm" onClick={() => setEditing(true)}>EDITAR PERFIL</Btn>}
+          {!isOwn && currentUser && (
+            <Btn variant={isFollowing ? 'confirm' : 'ghost'} size="sm" onClick={() => toggleFollow(hunter.id)}>
+              {isFollowing ? '★ SEGUINDO' : '☆ SEGUIR'}
+            </Btn>
+          )}
           <Btn variant="amber" size="sm" onClick={() => setShowShare(true)}>↗ COMPARTILHAR</Btn>
         </div>
       </div>
@@ -1625,9 +2187,53 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
               <div><label style={lbl}>BIO (OPCIONAL)</label>
                 <Textarea value={draft.bio} onChange={(v) => setDraft((d) => ({ ...d, bio: v }))} placeholder="ex: main Kyo · arcade stick · desde 2018" rows={3} />
               </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                <div><label style={lbl}>CIDADE (OPCIONAL)</label>
+                  <Input value={draft.city} onChange={(v) => setDraft((d) => ({ ...d, city: v }))} placeholder="ex: Pouso Alegre, MG" />
+                </div>
+                <div><label style={lbl}>PLATAFORMA</label>
+                  <Select value={draft.platform} onChange={(v) => setDraft((d) => ({ ...d, platform: v }))}>
+                    <option value="">— escolher —</option>
+                    <option value="PC">PC</option>
+                    <option value="Steam">Steam</option>
+                    <option value="PS4">PlayStation 4</option>
+                    <option value="PS5">PlayStation 5</option>
+                    <option value="Xbox">Xbox</option>
+                    <option value="Switch">Nintendo Switch</option>
+                    <option value="Arcade">Arcade Stick</option>
+                    <option value="Outro">Outro</option>
+                  </Select>
+                </div>
+              </div>
+
+              <div><label style={lbl}>MAINS NO 2002 (CLÁSSICA) — ATÉ 3</label>
+                <CharacterPicker selected={draft.mains2002} onChange={(arr) => setDraft((d) => ({ ...d, mains2002: arr }))} max={3} />
+              </div>
+              <div><label style={lbl}>MAINS NO 2002 UM (STEAM) — ATÉ 3</label>
+                <CharacterPicker selected={draft.mainsUm} onChange={(arr) => setDraft((d) => ({ ...d, mainsUm: arr }))} max={3} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                <div><label style={lbl}>TWITCH (USUÁRIO)</label>
+                  <Input value={draft.twitch} onChange={(v) => setDraft((d) => ({ ...d, twitch: v.replace(/^@/, '') }))} placeholder="seuusername" />
+                </div>
+                <div><label style={lbl}>YOUTUBE (CANAL)</label>
+                  <Input value={draft.youtube} onChange={(v) => setDraft((d) => ({ ...d, youtube: v }))} placeholder="@seucanal" />
+                </div>
+                <div><label style={lbl}>DISCORD</label>
+                  <Input value={draft.discord} onChange={(v) => setDraft((d) => ({ ...d, discord: v }))} placeholder="seuusername" />
+                </div>
+              </div>
+
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <Btn variant="amber" onClick={save}>✓ SALVAR</Btn>
-                <Btn variant="ghost" onClick={() => { setDraft({ tag: hunter.tag, name: hunter.name, bio: hunter.bio || '', avatarUrl: hunter.avatarUrl || '' }); setEditing(false); }}>CANCELAR</Btn>
+                <Btn variant="ghost" onClick={() => { setDraft({
+                  tag: hunter.tag, name: hunter.name, bio: hunter.bio || '', avatarUrl: hunter.avatarUrl || '',
+                  city: hunter.city || '', platform: hunter.platform || '',
+                  mains2002: hunter.mains2002 || [], mainsUm: hunter.mainsUm || [],
+                  twitch: hunter.twitch || '', youtube: hunter.youtube || '', discord: hunter.discord || '',
+                }); setEditing(false); }}>CANCELAR</Btn>
               </div>
             </div>
           </div>
@@ -1639,7 +2245,69 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
             <div style={{ fontFamily: FONTS.display, fontSize: 'clamp(32px, 8vw, 48px)', color: rank.color, letterSpacing: '0.05em', lineHeight: 0.9 }}>{hunter.tag}</div>
             <div style={{ fontFamily: FONTS.body, fontSize: 18, color: C.text, marginTop: 4 }}>{hunter.name}</div>
             {hunter.bio && <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 8, fontStyle: 'italic' }}>"{hunter.bio}"</div>}
-            <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.muted, marginTop: 8 }}>LUTADOR DESDE {fmtDate(hunter.joinedAt)}</div>
+
+            {/* Metadados: cidade, plataforma, mains */}
+            {(hunter.city || hunter.platform || (hunter.mains2002 && hunter.mains2002.length) || (hunter.mainsUm && hunter.mainsUm.length)) && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                {hunter.city && (
+                  <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.text, background: C.bg, border: `1px solid ${C.border}`, padding: '3px 8px', letterSpacing: '0.05em' }}>
+                    📍 {hunter.city}
+                  </span>
+                )}
+                {hunter.platform && (
+                  <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.text, background: C.bg, border: `1px solid ${C.border}`, padding: '3px 8px', letterSpacing: '0.05em' }}>
+                    🎮 {hunter.platform}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Mains por versão */}
+            {hunter.mains2002 && hunter.mains2002.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.red, letterSpacing: '0.15em' }}>MAINS 2002:</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                  {hunter.mains2002.map((c) => (
+                    <span key={c} style={{ fontFamily: FONTS.body, fontSize: 11, color: C.red, border: `1px solid ${C.red}`, padding: '2px 8px' }}>{c}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {hunter.mainsUm && hunter.mainsUm.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.cyan, letterSpacing: '0.15em' }}>MAINS UM:</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                  {hunter.mainsUm.map((c) => (
+                    <span key={c} style={{ fontFamily: FONTS.body, fontSize: 11, color: C.cyan, border: `1px solid ${C.cyan}`, padding: '2px 8px' }}>{c}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Redes sociais */}
+            {(hunter.twitch || hunter.youtube || hunter.discord) && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                {hunter.twitch && (
+                  <a href={`https://twitch.tv/${hunter.twitch}`} target="_blank" rel="noopener noreferrer"
+                    style={{ fontFamily: FONTS.mono, fontSize: 11, color: '#9146FF', textDecoration: 'none', border: `1px solid #9146FF`, padding: '4px 10px', letterSpacing: '0.05em' }}>
+                    📺 Twitch
+                  </a>
+                )}
+                {hunter.youtube && (
+                  <a href={hunter.youtube.startsWith('http') ? hunter.youtube : `https://youtube.com/${hunter.youtube}`} target="_blank" rel="noopener noreferrer"
+                    style={{ fontFamily: FONTS.mono, fontSize: 11, color: '#FF0000', textDecoration: 'none', border: `1px solid #FF0000`, padding: '4px 10px', letterSpacing: '0.05em' }}>
+                    ▶ YouTube
+                  </a>
+                )}
+                {hunter.discord && (
+                  <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: '#5865F2', border: `1px solid #5865F2`, padding: '4px 10px', letterSpacing: '0.05em' }}>
+                    💬 {hunter.discord}
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.muted, marginTop: 10 }}>LUTADOR DESDE {fmtDate(hunter.joinedAt)}</div>
           </div>
         </div>
       )}
@@ -1673,10 +2341,121 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
             <EloChart history={eloData.history} color={VERSIONS[activeVersion].color} />
           </Panel>
 
+          {/* MEUS RIVAIS — só no próprio perfil */}
+          {isOwn && follows.length > 0 && (
+            <Panel title={`MEUS RIVAIS · ${follows.length}`} accent={C.amber}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: C.border }}>
+                {follows.map((fid) => {
+                  const r = playerById[fid];
+                  if (!r || !isCompetitor(r)) return null;
+                  const rElo = ratingsByVersion[activeVersion]?.[r.id]?.elo ?? STARTING_ELO;
+                  const rRank = getRank(rElo);
+                  return (
+                    <div key={fid} onClick={() => onOpenHunter(r.id)}
+                      style={{ background: C.elevated, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                      <Avatar player={r} size={32} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: FONTS.display, fontSize: 14, color: rRank.color, letterSpacing: '0.05em' }}>{r.tag}</div>
+                        <div style={{ fontFamily: FONTS.body, fontSize: 12, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
+                      </div>
+                      <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: rRank.color }}>{rRank.id} · {rElo}</div>
+                      <button onClick={(e) => { e.stopPropagation(); toggleFollow(fid); }} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 16 }}>×</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </Panel>
+          )}
+
+          {detailedStats.totalMatches > 0 && (
+            <Panel title={`ESTATÍSTICAS DETALHADAS · ${VERSIONS[activeVersion].label}`}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
+                <BigStat label="SEQUÊNCIA ATUAL"
+                  value={detailedStats.currentStreak > 0 ? `${detailedStats.currentStreak}${detailedStats.currentStreakType}` : '—'}
+                  color={detailedStats.currentStreakType === 'W' ? C.green : detailedStats.currentStreakType === 'L' ? C.red : C.muted} />
+                <BigStat label="MELHOR SEQ. VITÓRIAS" value={detailedStats.bestWinStreak} color={C.green} />
+                <BigStat label="PIOR SEQ. DERROTAS" value={detailedStats.bestLossStreak} color={C.red} />
+                <BigStat label="ÚLTIMAS 10"
+                  value={`${detailedStats.last10Won}-${detailedStats.last10.length - detailedStats.last10Won}`}
+                  color={detailedStats.last10Won >= 5 ? C.green : C.red} />
+              </div>
+
+              {/* Últimas 10 partidas (formato visual W/L em sequência) */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, letterSpacing: '0.15em', marginBottom: 8 }}>FORMA RECENTE (mais antiga → mais nova)</div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {[...detailedStats.last10].reverse().map((m, i) => {
+                    const won = m.winnerId === hunter.id;
+                    return (
+                      <span key={m.id} title={`vs ${playerById[won ? (m.player1Id === hunter.id ? m.player2Id : m.player1Id) : (m.player1Id === hunter.id ? m.player2Id : m.player1Id)]?.tag} - ${fmtDate(m.completedAt || m.scheduledAt)}`}
+                        style={{ width: 28, height: 28, background: won ? C.green : C.red, color: '#0A0A0A', fontFamily: FONTS.display, fontSize: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                        {won ? 'V' : 'D'}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Performance por mês */}
+              {detailedStats.byMonth.length > 0 && (
+                <div>
+                  <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, letterSpacing: '0.15em', marginBottom: 8 }}>PERFORMANCE POR MÊS</div>
+                  <div className="kof-scroll-x" style={{ paddingBottom: 4 }}>
+                    <div style={{ display: 'flex', gap: 6, minWidth: 'max-content' }}>
+                      {detailedStats.byMonth.map((mo) => (
+                        <div key={mo.month} style={{ background: C.bg, border: `1px solid ${C.border}`, padding: '8px 10px', minWidth: 100 }}>
+                          <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, letterSpacing: '0.1em' }}>{mo.month}</div>
+                          <div style={{ fontFamily: FONTS.display, fontSize: 18, color: mo.wr >= 50 ? C.green : C.red, marginTop: 4 }}>{mo.wr}%</div>
+                          <div style={{ fontFamily: FONTS.mono, fontSize: 10, marginTop: 2 }}>
+                            <span style={{ color: C.green }}>{mo.w}V</span>·<span style={{ color: C.red }}>{mo.l}D</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Panel>
+          )}
+
+          {headToHead.length > 0 && (
+            <Panel title={`HEAD-TO-HEAD · ${VERSIONS[activeVersion].label}`} accent={C.amber}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {headToHead.map((h) => {
+                  const opp = h.opp;
+                  const oppElo = ratingsByVersion[activeVersion]?.[opp.id]?.elo ?? STARTING_ELO;
+                  const oppRank = getRank(oppElo);
+                  const winRate = h.total > 0 ? Math.round((h.wins / h.total) * 100) : 0;
+                  const dominant = h.wins > h.losses ? 'win' : h.wins < h.losses ? 'loss' : 'even';
+                  return (
+                    <div key={h.oppId} onClick={() => onOpenHunter && onOpenHunter(opp.id)}
+                      style={{ display: 'grid', gridTemplateColumns: isMobileProfile ? '36px 1fr auto' : '36px 1fr auto auto', gap: 12, alignItems: 'center', padding: '10px 12px', background: C.bg, border: `1px solid ${C.border}`, borderLeft: `3px solid ${dominant === 'win' ? C.green : dominant === 'loss' ? C.red : C.muted}`, cursor: 'pointer' }}>
+                      <Avatar player={opp} size={32} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: FONTS.display, fontSize: 15, color: oppRank.color, letterSpacing: '0.05em' }}>{opp.tag}</div>
+                        <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted }}>último confronto: {fmtDate(h.last)}</div>
+                      </div>
+                      <div style={{ fontFamily: FONTS.display, fontSize: 18, letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+                        <span style={{ color: C.green }}>{h.wins}</span>
+                        <span style={{ color: C.dim, margin: '0 4px' }}>×</span>
+                        <span style={{ color: C.red }}>{h.losses}</span>
+                      </div>
+                      {!isMobileProfile && (
+                        <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: dominant === 'win' ? C.green : dominant === 'loss' ? C.red : C.muted, letterSpacing: '0.1em', minWidth: 50, textAlign: 'right' }}>
+                          {winRate}% WR
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Panel>
+          )}
+
           <Panel title={`HISTÓRICO ${VERSIONS[activeVersion].label}`}>
             {myMatches.length === 0 ? <Empty msg={`Nenhuma partida concluída em ${VERSIONS[activeVersion].fullLabel} ainda.`} /> : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {myMatches.map((m) => <ScheduledRow key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onClickHunter={onOpenHunter} />)}
+                {myMatches.map((m) => <ScheduledRow key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onClickHunter={onOpenHunter} onClickMatch={onOpenMatch} />)}
               </div>
             )}
           </Panel>
@@ -1701,6 +2480,178 @@ function BigStat({ label, value, color, sub }) {
 // ═══════════════════════════════════════════════════════════
 // ADMIN PANEL
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// VIEW: NOTÍCIAS / GUIAS
+// ═══════════════════════════════════════════════════════════
+function useNewsList() {
+  const [news, setNews] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await window.storage.get(KEYS.news);
+        const data = res?.value ? JSON.parse(res.value) : [];
+        setNews(data);
+      } catch { setNews([]); }
+      setLoaded(true);
+    })();
+  }, []);
+
+  const save = async (next) => {
+    setNews(next);
+    try { await window.storage.set(KEYS.news, JSON.stringify(next)); } catch {}
+  };
+
+  return { news, setNews: save, loaded };
+}
+
+function NewsView({ currentUser, onOpenHunter }) {
+  const { news, setNews } = useNewsList();
+  const [editing, setEditing] = useState(null); // null | 'new' | newsId
+  const isAdmin = !!currentUser?.isAdmin;
+  const isMobile = useIsMobile();
+
+  const sorted = useMemo(() => [...news].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), [news]);
+
+  const startNew = () => setEditing('new');
+  const startEdit = (id) => setEditing(id);
+
+  const remove = (id) => {
+    if (!confirm('Apagar este post?')) return;
+    setNews(news.filter((n) => n.id !== id));
+  };
+
+  const submit = (data) => {
+    if (editing === 'new') {
+      const post = {
+        id: `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        ...data,
+        authorId: currentUser.id,
+        authorTag: currentUser.tag,
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+      };
+      setNews([post, ...news]);
+    } else {
+      setNews(news.map((n) => n.id === editing ? { ...n, ...data, updatedAt: new Date().toISOString() } : n));
+    }
+    setEditing(null);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <div style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.muted, letterSpacing: '0.2em' }}>// CONTEÚDO OFICIAL</div>
+          <h2 style={{ fontFamily: FONTS.display, fontSize: isMobile ? 28 : 40, letterSpacing: '0.05em', color: C.text, margin: '4px 0 0' }}>NOTÍCIAS & GUIAS</h2>
+        </div>
+        {isAdmin && !editing && <Btn variant="primary" onClick={startNew}>+ NOVO POST</Btn>}
+      </div>
+
+      {editing && (
+        <NewsEditor
+          initial={editing === 'new' ? null : news.find((n) => n.id === editing)}
+          onSave={submit}
+          onCancel={() => setEditing(null)} />
+      )}
+
+      {sorted.length === 0 && !editing ? (
+        <Panel><Empty msg="Nenhum post publicado ainda. Volte mais tarde!" /></Panel>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {sorted.map((post) => (
+            <NewsCard key={post.id} post={post} isAdmin={isAdmin} onEdit={() => startEdit(post.id)} onDelete={() => remove(post.id)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewsCard({ post, isAdmin, onEdit, onDelete }) {
+  const [expanded, setExpanded] = useState(false);
+  const tooLong = post.body.length > 360;
+  const display = !expanded && tooLong ? post.body.slice(0, 360) + '…' : post.body;
+  return (
+    <article style={{ background: C.elevated, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.amber}`, padding: 'clamp(14px, 4vw, 20px)' }}>
+      {post.imageUrl && (
+        <img src={post.imageUrl} alt="" style={{ width: '100%', maxHeight: 280, objectFit: 'cover', marginBottom: 14, display: 'block' }} onError={(e) => { e.target.style.display = 'none'; }} />
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+        <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, letterSpacing: '0.15em' }}>
+          {post.category?.toUpperCase() || 'NOTÍCIA'} · {fmtRelative(post.createdAt)} · POR {post.authorTag}
+          {post.updatedAt && <span style={{ color: C.dim }}> · editado</span>}
+        </div>
+        {isAdmin && (
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button onClick={onEdit} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontFamily: FONTS.mono, fontSize: 11, letterSpacing: '0.1em' }}>EDITAR</button>
+            <button onClick={onDelete} style={{ background: 'transparent', border: 'none', color: C.red, cursor: 'pointer', fontFamily: FONTS.mono, fontSize: 11, letterSpacing: '0.1em' }}>×</button>
+          </div>
+        )}
+      </div>
+      <h3 style={{ fontFamily: FONTS.display, fontSize: 'clamp(20px, 4vw, 28px)', color: C.text, letterSpacing: '0.03em', margin: '0 0 10px', lineHeight: 1.2 }}>{post.title}</h3>
+      <div style={{ fontFamily: FONTS.body, fontSize: 15, color: C.text, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{display}</div>
+      {tooLong && (
+        <button onClick={() => setExpanded(!expanded)}
+          style={{ background: 'transparent', border: 'none', color: C.amber, cursor: 'pointer', fontFamily: FONTS.mono, fontSize: 11, marginTop: 10, padding: 0, letterSpacing: '0.1em' }}>
+          {expanded ? '← MOSTRAR MENOS' : 'LER MAIS →'}
+        </button>
+      )}
+    </article>
+  );
+}
+
+function NewsEditor({ initial, onSave, onCancel }) {
+  const [title, setTitle] = useState(initial?.title || '');
+  const [body, setBody] = useState(initial?.body || '');
+  const [category, setCategory] = useState(initial?.category || 'Notícia');
+  const [imageUrl, setImageUrl] = useState(initial?.imageUrl || '');
+
+  const save = () => {
+    if (!title.trim() || !body.trim()) {
+      alert('Título e conteúdo são obrigatórios.'); return;
+    }
+    onSave({
+      title: title.trim().slice(0, 120),
+      body: body.trim(),
+      category: category || 'Notícia',
+      imageUrl: imageUrl.trim() || null,
+    });
+  };
+
+  return (
+    <Panel title={initial ? 'EDITAR POST' : 'NOVO POST'} accent={C.amber}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+          <div><label style={lbl}>CATEGORIA</label>
+            <Select value={category} onChange={setCategory}>
+              <option value="Notícia">📰 Notícia</option>
+              <option value="Guia">📖 Guia</option>
+              <option value="Aviso">⚠️ Aviso</option>
+              <option value="Resultado">🏆 Resultado</option>
+              <option value="Bastidores">🎬 Bastidores</option>
+            </Select>
+          </div>
+          <div><label style={lbl}>URL DA IMAGEM (OPCIONAL)</label>
+            <Input value={imageUrl} onChange={setImageUrl} placeholder="https://..." />
+          </div>
+        </div>
+        <div><label style={lbl}>TÍTULO ({title.length}/120)</label>
+          <Input value={title} onChange={(v) => setTitle(v.slice(0, 120))} placeholder="ex: Sorteio das oitavas do Campeonato 2026" />
+        </div>
+        <div><label style={lbl}>CONTEÚDO</label>
+          <Textarea value={body} onChange={setBody} placeholder="Escreva o conteúdo do post. Quebras de linha são preservadas." rows={10} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Btn variant="ghost" onClick={onCancel}>CANCELAR</Btn>
+          <Btn variant="amber" onClick={save}>✓ {initial ? 'SALVAR ALTERAÇÕES' : 'PUBLICAR'}</Btn>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function AdminPanel({ players, matches, ratingsByVersion, playerById, onScheduleMatch, onUpdateMatch, onDeleteMatch, onResetDemo, onBanPlayer, onUnbanPlayer, onAdminEditProfile, onDeletePlayer }) {
   const [adminTab, setAdminTab] = useState('duelos');
   const pending = useMemo(() => matches.filter((m) => (m.status === 'scheduled' && new Date(m.scheduledAt) < new Date()) || m.status === 'live')
@@ -2549,6 +3500,15 @@ function BracketMatch({ m, round, playerById, ratingsByVersion, version, onAdvan
 export default function App() {
   const [view, setView] = useState('home');
   const [viewingHunterId, setViewingHunterId] = useState(null);
+  const [viewingMatchId, setViewingMatchId] = useState(null); // tela de detalhe da luta
+
+  // Deep-link: ?luta=ID abre a tela de detalhe da luta direto
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const lutaId = params.get('luta');
+    if (lutaId) setViewingMatchId(lutaId);
+  }, []);
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -2691,8 +3651,76 @@ export default function App() {
   };
 
   // Match operations (admin only - guarded by UI)
-  const scheduleMatch = (m) => persistMatches([m, ...matches]);
-  const updateMatch = (id, patch) => persistMatches(matches.map((m) => m.id === id ? { ...m, ...patch } : m));
+  const scheduleMatch = (m) => {
+    persistMatches([m, ...matches]);
+    // Notifica Discord (silencioso se webhook desativado)
+    if (DISCORD_WEBHOOK.notifyOnScheduled) {
+      const p1 = playerById[m.player1Id], p2 = playerById[m.player2Id];
+      const v = VERSIONS[m.version];
+      if (p1 && p2 && v) {
+        notifyDiscord({
+          embeds: [{
+            title: `🥊 NOVO DUELO AGENDADO`,
+            description: `**${p1.tag}** vs **${p2.tag}**`,
+            color: 0xDC2626,
+            fields: [
+              { name: '📅 Data', value: fmtDateTime(m.scheduledAt), inline: true },
+              { name: '🎮 Versão', value: v.fullLabel, inline: true },
+            ],
+            footer: { text: 'ARENA BNOSTLE' },
+            timestamp: new Date().toISOString(),
+          }],
+        });
+      }
+    }
+  };
+
+  const updateMatch = (id, patch) => {
+    const previous = matches.find((m) => m.id === id);
+    persistMatches(matches.map((m) => m.id === id ? { ...m, ...patch } : m));
+
+    // Detectar transições e notificar Discord
+    if (previous && patch.status && patch.status !== previous.status) {
+      const p1 = playerById[previous.player1Id], p2 = playerById[previous.player2Id];
+      const v = VERSIONS[previous.version];
+      if (!p1 || !p2 || !v) return;
+
+      if (patch.status === 'live' && DISCORD_WEBHOOK.notifyOnLive) {
+        notifyDiscord({
+          embeds: [{
+            title: `🔴 AO VIVO AGORA`,
+            description: `**${p1.tag}** vs **${p2.tag}** está acontecendo!\n\n[▶ Assistir](${patch.streamUrl || previous.streamUrl || ''})`,
+            color: 0xDC2626,
+            fields: [
+              { name: '🎮 Versão', value: v.fullLabel, inline: true },
+            ],
+            footer: { text: 'ARENA BNOSTLE' },
+            timestamp: new Date().toISOString(),
+          }],
+        });
+      }
+      if (patch.status === 'completed' && DISCORD_WEBHOOK.notifyOnCompleted) {
+        const winnerId = patch.winnerId || previous.winnerId;
+        const winner = winnerId === p1.id ? p1 : winnerId === p2.id ? p2 : null;
+        const loser = winner?.id === p1.id ? p2 : p1;
+        if (winner) {
+          notifyDiscord({
+            embeds: [{
+              title: `🏆 RESULTADO`,
+              description: `**${winner.tag}** venceu **${loser.tag}**!`,
+              color: 0x16A34A,
+              fields: [
+                { name: '📊 Placar', value: patch.score || previous.score || '—', inline: true },
+                { name: '🎮 Versão', value: v.fullLabel, inline: true },
+              ],
+              footer: { text: 'ARENA BNOSTLE' },
+              timestamp: new Date().toISOString(),
+            }],
+          });
+        }
+      }
+    }
+  };
   const deleteMatch = (id) => persistMatches(matches.filter((m) => m.id !== id));
 
   // Profile updates (own only)
@@ -2767,9 +3795,11 @@ export default function App() {
   const allowedTabs = tabsForUser(currentUser).map((t) => t.id);
   useEffect(() => { if (!allowedTabs.includes(view) && view !== 'profile' && !viewingHunterId) setView('home'); }, [currentUser]); // eslint-disable-line
 
-  const openHunter = (id) => { setViewingHunterId(id); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const openHunter = (id) => { setViewingHunterId(id); setViewingMatchId(null); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const closeHunterView = () => setViewingHunterId(null);
   const openMyProfile = () => { if (currentUser && !currentUser.isAdmin) setViewingHunterId(currentUser.id); };
+  const openMatch = (id) => { setViewingMatchId(id); setViewingHunterId(null); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const closeMatchView = () => setViewingMatchId(null);
 
   if (!loaded) return <div style={{ minHeight: '100vh', background: C.bg, color: C.muted, fontFamily: FONTS.mono, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ letterSpacing: '0.2em' }}>// CARREGANDO ARENA…</span></div>;
 
@@ -2778,6 +3808,7 @@ export default function App() {
   }
 
   const viewingHunter = viewingHunterId ? playerById[viewingHunterId] : null;
+  const viewingMatch = viewingMatchId ? matches.find((m) => m.id === viewingMatchId) : null;
   const isOwnProfile = viewingHunter && currentUser && viewingHunter.id === currentUser.id;
   const isAdmin = !!currentUser?.isAdmin;
 
@@ -2793,20 +3824,23 @@ export default function App() {
         onLogin={() => setShowLogin(true)}
         onDonate={() => setShowDonate(true)}
       />
-      {!viewingHunter && <TabBar active={view} onChange={(v) => { setView(v); setViewingHunterId(null); }} user={currentUser} pendingCount={pendingResultsCount} />}
+      {!viewingHunter && !viewingMatch && <TabBar active={view} onChange={(v) => { setView(v); setViewingHunterId(null); setViewingMatchId(null); }} user={currentUser} pendingCount={pendingResultsCount} />}
       <div style={{ padding: 'clamp(12px, 3vw, 24px)', maxWidth: 1400, margin: '0 auto' }}>
-        {viewingHunter ? (
-          <HunterProfileView hunter={viewingHunter} isOwn={isOwnProfile} players={players} matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onBack={closeHunterView} onOpenHunter={openHunter} onUpdateProfile={updateOwnProfile} />
+        {viewingMatch ? (
+          <MatchDetailView match={viewingMatch} players={players} matches={matches} playerById={playerById} ratingsByVersion={ratingsByVersion} isAdmin={isAdmin} currentUser={currentUser} onBack={closeMatchView} onOpenHunter={openHunter} onUpdateMatch={updateMatch} onDeleteMatch={(id) => { deleteMatch(id); closeMatchView(); }} />
+        ) : viewingHunter ? (
+          <HunterProfileView hunter={viewingHunter} isOwn={isOwnProfile} players={players} matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} currentUser={currentUser} onBack={closeHunterView} onOpenHunter={openHunter} onOpenMatch={openMatch} onUpdateProfile={updateOwnProfile} />
         ) : (
           <>
-            {view === 'home' && <HomeView players={players} matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onNavigate={setView} onOpenHunter={openHunter} architect={architectThreshold} />}
-            {view === 'agenda' && <AgendaView matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onOpenHunter={openHunter} />}
-            {view === 'vods' && <VodsView matches={matches} playerById={playerById} ratingsByVersion={ratingsByVersion} onOpenHunter={openHunter} />}
+            {view === 'home' && <HomeView players={players} matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onNavigate={setView} onOpenHunter={openHunter} onOpenMatch={openMatch} architect={architectThreshold} />}
+            {view === 'agenda' && <AgendaView matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onOpenHunter={openHunter} onOpenMatch={openMatch} />}
+            {view === 'vods' && <VodsView matches={matches} playerById={playerById} ratingsByVersion={ratingsByVersion} onOpenHunter={openHunter} onOpenMatch={openMatch} />}
             {view === 'hunters' && <HuntersView players={players} ratingsByVersion={ratingsByVersion} onOpenHunter={openHunter} />}
             {view === 'mensal' && <RankingView players={players} matches={matches} mode="mensal" onOpenHunter={openHunter} />}
             {view === 'anual' && <RankingView players={players} matches={matches} mode="anual" onOpenHunter={openHunter} />}
             {view === 'campeonato' && <ChampionshipView players={players} matches={matches} ratingsByVersion={ratingsByVersion} isAdmin={isAdmin} onOpenHunter={openHunter} />}
-            {view === 'admin' && isAdmin && <AdminPanel players={players} matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onScheduleMatch={scheduleMatch} onUpdateMatch={updateMatch} onDeleteMatch={deleteMatch} onResetDemo={resetDemo} onBanPlayer={banPlayer} onUnbanPlayer={unbanPlayer} onAdminEditProfile={adminEditProfile} onDeletePlayer={deletePlayer} />}
+            {view === 'noticias' && <NewsView currentUser={currentUser} onOpenHunter={openHunter} />}
+            {view === 'admin' && isAdmin && <AdminPanel players={players} matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onScheduleMatch={scheduleMatch} onUpdateMatch={updateMatch} onDeleteMatch={deleteMatch} onResetDemo={resetDemo} onBanPlayer={banPlayer} onUnbanPlayer={unbanPlayer} onAdminEditProfile={adminEditProfile} onDeletePlayer={deletePlayer} onOpenMatch={openMatch} />}
           </>
         )}
       </div>

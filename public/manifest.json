@@ -1,0 +1,26 @@
+{
+  "name": "ARENA BNOSTLE - KOF 2002/UM",
+  "short_name": "Arena Bnostle",
+  "description": "Liga oficial de King of Fighters 2002/UM. Agenda, transmissões, ranking ELO e campeonato anual.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0E0E10",
+  "theme_color": "#DC2626",
+  "orientation": "any",
+  "categories": ["games", "sports", "entertainment"],
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
