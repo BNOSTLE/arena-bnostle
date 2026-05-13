@@ -29,7 +29,7 @@ const PIX_CONFIG = {
 // (Server Settings → Integrations → Webhooks → New Webhook)
 // Copia a URL e cole aqui. Pra desativar: deixa string vazia.
 const DISCORD_WEBHOOK = {
-  url: '', // exemplo: 'https://discord.com/api/webhooks/123456/abcdef'
+  url: 'https://discord.com/api/webhooks/1504254798176981014/4eHVGz6CbGsd6XoeEXDhkBF_FEfGBD7iD9ON0PX557YEkksZ65MamWGrRjKdf6hFaVEw', 
   notifyOnScheduled: true,  // posta quando admin agenda novo duelo
   notifyOnLive: true,       // posta quando admin marca como AO VIVO
   notifyOnCompleted: true,  // posta resultado quando termina
