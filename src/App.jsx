@@ -170,6 +170,8 @@ function nextRankInfo(elo) {
 // Banidos nunca aparecem em listas públicas, mas SUAS LUTAS PASSADAS continuam
 // no histórico de quem lutou contra eles (com a tag BANIDO).
 function isPublic(p) {
+  // Em modo Supabase, admin é um perfil normal que TAMBÉM é lutador
+  // Em modo demo, admin tinha ID 'admin' (fictício) e era excluído das listas
   return p && p.id !== 'admin' && !p.isBanned && !p.isDeleted;
 }
 function isCompetitor(p) {
@@ -2135,7 +2137,7 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
   const shareUrl = (typeof window !== 'undefined' ? window.location.origin : 'https://arena-bnostle.app') + `/h/${hunter.tag}`;
 
   const save = () => {
-    const newTag = draft.tag.toUpperCase().slice(0, 6);
+    const newTag = draft.tag.toUpperCase().slice(0, 10);
     if (newTag.length < 2) { alert('Tag precisa ter no mínimo 2 letras.'); return; }
     onUpdateProfile({
       tag: newTag,
@@ -2183,7 +2185,7 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
               <div><label style={lbl}>NOME COMPLETO</label>
                 <Input value={draft.name} onChange={(v) => setDraft((d) => ({ ...d, name: v }))} />
               </div>
-              <div><label style={lbl}>TAG (2-6 LETRAS)</label>
+              <div><label style={lbl}>TAG (2-10 LETRAS)</label>
                 <Input value={draft.tag} onChange={(v) => setDraft((d) => ({ ...d, tag: v.toUpperCase() }))} />
               </div>
               <div><label style={lbl}>BIO (OPCIONAL)</label>
@@ -2970,7 +2972,7 @@ function AdminEditProfileModal({ player, onSave, onClose }) {
     avatarUrl: player.avatarUrl || '',
   });
   const save = () => {
-    const tag = draft.tag.toUpperCase().slice(0, 6);
+    const tag = draft.tag.toUpperCase().slice(0, 10);
     if (tag.length < 2) { alert('Tag precisa ter no mínimo 2 letras.'); return; }
     onSave({ tag, name: draft.name.trim(), bio: draft.bio.trim() || null, avatarUrl: draft.avatarUrl.trim() || null });
   };
@@ -2988,7 +2990,7 @@ function AdminEditProfileModal({ player, onSave, onClose }) {
           <div style={{ fontFamily: FONTS.body, fontSize: 12, color: C.muted, marginBottom: 4, lineHeight: 1.5 }}>
             Use isso pra corrigir conteúdo inadequado (palavrões, ofensas, etc) sem precisar banir o lutador.
           </div>
-          <div><label style={lbl}>TAG (2-6 LETRAS)</label>
+          <div><label style={lbl}>TAG (2-10 LETRAS)</label>
             <Input value={draft.tag} onChange={(v) => setDraft((d) => ({ ...d, tag: v.toUpperCase() }))} />
           </div>
           <div><label style={lbl}>NOME</label>
@@ -3557,7 +3559,16 @@ export default function App() {
 
     (async () => {
       if (hasSupabase) {
-        // MODO PRODUÇÃO: carrega do Supabase
+        // MODO PRODUÇÃO: limpa dados residuais do modo demo (se houver)
+        try {
+          for (const key of Object.values(KEYS)) {
+            if (typeof key === 'string') {
+              await window.storage.delete(key).catch(() => {});
+            }
+          }
+        } catch {}
+
+        // Carrega do Supabase
         try {
           const [pl, ma, session] = await Promise.all([
             api.fetchAllProfiles(),
@@ -3806,7 +3817,7 @@ export default function App() {
 
   // Profile updates (own only)
   const updateOwnProfile = async (patch) => {
-    if (!currentUser || currentUser.isAdmin) return;
+    if (!currentUser) return;
     if (patch.tag && patch.tag !== currentUser.tag && players.some((p) => p.tag === patch.tag)) {
       alert(`Tag "${patch.tag}" já está em uso.`); return;
     }
@@ -3906,7 +3917,7 @@ export default function App() {
 
   const openHunter = (id) => { setViewingHunterId(id); setViewingMatchId(null); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const closeHunterView = () => setViewingHunterId(null);
-  const openMyProfile = () => { if (currentUser && !currentUser.isAdmin) setViewingHunterId(currentUser.id); };
+  const openMyProfile = () => { if (currentUser) setViewingHunterId(currentUser.id); };
   const openMatch = (id) => { setViewingMatchId(id); setViewingHunterId(null); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const closeMatchView = () => setViewingMatchId(null);
 
