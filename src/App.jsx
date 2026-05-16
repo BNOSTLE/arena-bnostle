@@ -304,6 +304,63 @@ function youtubeId(url) {
   return null;
 }
 function twitchChannel(url) { if (!url) return null; const m = url.match(/twitch\.tv\/([a-zA-Z0-9_]+)/); return m ? m[1] : null; }
+// ─── GRAVATAR ────────────────────────────────────────────────
+// MD5 implementation (necessária pra gerar URL do Gravatar)
+// Fightcade usa Gravatar, então usar o mesmo email = mesma foto
+function md5(str) {
+  // Implementação compacta de MD5 (RFC 1321)
+  function r(n, s) { return (n << s) | (n >>> (32 - s)); }
+  function add(x, y) { const l = (x & 0xFFFF) + (y & 0xFFFF); return (((x >> 16) + (y >> 16) + (l >> 16)) << 16) | (l & 0xFFFF); }
+  function f(x, y, z) { return (x & y) | ((~x) & z); }
+  function g(x, y, z) { return (x & z) | (y & (~z)); }
+  function h(x, y, z) { return x ^ y ^ z; }
+  function i(x, y, z) { return y ^ (x | (~z)); }
+  function step(fn, a, b, c, d, x, s, t) { return add(r(add(add(a, fn(b, c, d)), add(x, t)), s), b); }
+  function toBlocks(s) {
+    const bin = []; const len = s.length * 8;
+    for (let i = 0; i < len; i += 8) bin[i >> 5] |= (s.charCodeAt(i / 8) & 0xFF) << (i % 32);
+    bin[len >> 5] |= 0x80 << (len % 32); bin[(((len + 64) >>> 9) << 4) + 14] = len;
+    return bin;
+  }
+  function toHex(num) {
+    let out = '';
+    for (let j = 0; j < 4; j++) out += ((num >> (j * 8 + 4)) & 0x0F).toString(16) + ((num >> (j * 8)) & 0x0F).toString(16);
+    return out;
+  }
+  const x = toBlocks(unescape(encodeURIComponent(str)));
+  let a = 1732584193, b = -271733879, c = -1732584194, d = 271733878;
+  for (let k = 0; k < x.length; k += 16) {
+    const oa = a, ob = b, oc = c, od = d;
+    a = step(f, a, b, c, d, x[k+0] || 0, 7, -680876936); d = step(f, d, a, b, c, x[k+1] || 0, 12, -389564586); c = step(f, c, d, a, b, x[k+2] || 0, 17, 606105819); b = step(f, b, c, d, a, x[k+3] || 0, 22, -1044525330);
+    a = step(f, a, b, c, d, x[k+4] || 0, 7, -176418897); d = step(f, d, a, b, c, x[k+5] || 0, 12, 1200080426); c = step(f, c, d, a, b, x[k+6] || 0, 17, -1473231341); b = step(f, b, c, d, a, x[k+7] || 0, 22, -45705983);
+    a = step(f, a, b, c, d, x[k+8] || 0, 7, 1770035416); d = step(f, d, a, b, c, x[k+9] || 0, 12, -1958414417); c = step(f, c, d, a, b, x[k+10] || 0, 17, -42063); b = step(f, b, c, d, a, x[k+11] || 0, 22, -1990404162);
+    a = step(f, a, b, c, d, x[k+12] || 0, 7, 1804603682); d = step(f, d, a, b, c, x[k+13] || 0, 12, -40341101); c = step(f, c, d, a, b, x[k+14] || 0, 17, -1502002290); b = step(f, b, c, d, a, x[k+15] || 0, 22, 1236535329);
+    a = step(g, a, b, c, d, x[k+1] || 0, 5, -165796510); d = step(g, d, a, b, c, x[k+6] || 0, 9, -1069501632); c = step(g, c, d, a, b, x[k+11] || 0, 14, 643717713); b = step(g, b, c, d, a, x[k+0] || 0, 20, -373897302);
+    a = step(g, a, b, c, d, x[k+5] || 0, 5, -701558691); d = step(g, d, a, b, c, x[k+10] || 0, 9, 38016083); c = step(g, c, d, a, b, x[k+15] || 0, 14, -660478335); b = step(g, b, c, d, a, x[k+4] || 0, 20, -405537848);
+    a = step(g, a, b, c, d, x[k+9] || 0, 5, 568446438); d = step(g, d, a, b, c, x[k+14] || 0, 9, -1019803690); c = step(g, c, d, a, b, x[k+3] || 0, 14, -187363961); b = step(g, b, c, d, a, x[k+8] || 0, 20, 1163531501);
+    a = step(g, a, b, c, d, x[k+13] || 0, 5, -1444681467); d = step(g, d, a, b, c, x[k+2] || 0, 9, -51403784); c = step(g, c, d, a, b, x[k+7] || 0, 14, 1735328473); b = step(g, b, c, d, a, x[k+12] || 0, 20, -1926607734);
+    a = step(h, a, b, c, d, x[k+5] || 0, 4, -378558); d = step(h, d, a, b, c, x[k+8] || 0, 11, -2022574463); c = step(h, c, d, a, b, x[k+11] || 0, 16, 1839030562); b = step(h, b, c, d, a, x[k+14] || 0, 23, -35309556);
+    a = step(h, a, b, c, d, x[k+1] || 0, 4, -1530992060); d = step(h, d, a, b, c, x[k+4] || 0, 11, 1272893353); c = step(h, c, d, a, b, x[k+7] || 0, 16, -155497632); b = step(h, b, c, d, a, x[k+10] || 0, 23, -1094730640);
+    a = step(h, a, b, c, d, x[k+13] || 0, 4, 681279174); d = step(h, d, a, b, c, x[k+0] || 0, 11, -358537222); c = step(h, c, d, a, b, x[k+3] || 0, 16, -722521979); b = step(h, b, c, d, a, x[k+6] || 0, 23, 76029189);
+    a = step(h, a, b, c, d, x[k+9] || 0, 4, -640364487); d = step(h, d, a, b, c, x[k+12] || 0, 11, -421815835); c = step(h, c, d, a, b, x[k+15] || 0, 16, 530742520); b = step(h, b, c, d, a, x[k+2] || 0, 23, -995338651);
+    a = step(i, a, b, c, d, x[k+0] || 0, 6, -198630844); d = step(i, d, a, b, c, x[k+7] || 0, 10, 1126891415); c = step(i, c, d, a, b, x[k+14] || 0, 15, -1416354905); b = step(i, b, c, d, a, x[k+5] || 0, 21, -57434055);
+    a = step(i, a, b, c, d, x[k+12] || 0, 6, 1700485571); d = step(i, d, a, b, c, x[k+3] || 0, 10, -1894986606); c = step(i, c, d, a, b, x[k+10] || 0, 15, -1051523); b = step(i, b, c, d, a, x[k+1] || 0, 21, -2054922799);
+    a = step(i, a, b, c, d, x[k+8] || 0, 6, 1873313359); d = step(i, d, a, b, c, x[k+15] || 0, 10, -30611744); c = step(i, c, d, a, b, x[k+6] || 0, 15, -1560198380); b = step(i, b, c, d, a, x[k+13] || 0, 21, 1309151649);
+    a = step(i, a, b, c, d, x[k+4] || 0, 6, -145523070); d = step(i, d, a, b, c, x[k+11] || 0, 10, -1120210379); c = step(i, c, d, a, b, x[k+2] || 0, 15, 718787259); b = step(i, b, c, d, a, x[k+9] || 0, 21, -343485551);
+    a = add(a, oa); b = add(b, ob); c = add(c, oc); d = add(d, od);
+  }
+  return toHex(a) + toHex(b) + toHex(c) + toHex(d);
+}
+
+// Gera URL do Gravatar a partir de um email (mesmo formato usado pelo Fightcade)
+// Se o email não tem conta no Gravatar, mostra avatar gerado automaticamente (estilo "identicon")
+function gravatarUrl(email, size = 200) {
+  if (!email || typeof email !== 'string') return null;
+  const clean = email.trim().toLowerCase();
+  const hash = md5(clean);
+  return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=identicon`;
+}
+
 function streamEmbedUrl(url, autoplay = true) {
   if (!url) return null;
   const yt = youtubeId(url);
@@ -405,8 +462,10 @@ function shade(hex, amt) {
 }
 function Avatar({ player, size = 36, onClick }) {
   if (!player) return <div style={{ width: size, height: size, background: C.border }} />;
-  if (player.avatarUrl) {
-    return <img src={player.avatarUrl} alt={player.tag} onClick={onClick}
+  // Prioridade: avatarUrl explícito > Gravatar via fightcadeEmail > iniciais coloridas
+  const resolvedUrl = player.avatarUrl || (player.fightcadeEmail ? gravatarUrl(player.fightcadeEmail, Math.max(size * 2, 96)) : null);
+  if (resolvedUrl) {
+    return <img src={resolvedUrl} alt={player.tag} onClick={onClick}
       style={{ width: size, height: size, objectFit: 'cover', cursor: onClick ? 'pointer' : 'default', flexShrink: 0 }} />;
   }
   const initials = (player.tag || player.name || '?').slice(0, 2).toUpperCase();
@@ -2054,6 +2113,7 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
     twitch: hunter.twitch || '',
     youtube: hunter.youtube || '',
     discord: hunter.discord || '',
+    fightcadeEmail: hunter.fightcadeEmail || '',
   }));
   const [activeVersion, setActiveVersion] = useState('2002');
 
@@ -2151,6 +2211,7 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
       twitch: draft.twitch.trim() || null,
       youtube: draft.youtube.trim() || null,
       discord: draft.discord.trim() || null,
+      fightcadeEmail: draft.fightcadeEmail.trim().toLowerCase() || null,
     });
     setEditing(false);
   };
@@ -2218,6 +2279,25 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
                 <CharacterPicker selected={draft.mainsUm} onChange={(arr) => setDraft((d) => ({ ...d, mainsUm: arr }))} max={3} />
               </div>
 
+              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.purple}`, padding: 12, marginBottom: 10 }}>
+                <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.purple, letterSpacing: '0.15em', marginBottom: 8 }}>📸 FOTO AUTOMÁTICA (FIGHTCADE / GRAVATAR)</div>
+                <div style={{ fontFamily: FONTS.body, fontSize: 12, color: C.muted, marginBottom: 8, lineHeight: 1.5 }}>
+                  Coloque o email da sua conta Fightcade e a foto será carregada automaticamente (mesma foto do seu perfil no Fightcade). Este email é privado, só você vê.
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <Input value={draft.fightcadeEmail} onChange={(v) => setDraft((d) => ({ ...d, fightcadeEmail: v }))} placeholder="seuemail@exemplo.com" />
+                  </div>
+                  {draft.fightcadeEmail && draft.fightcadeEmail.includes('@') && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <img src={gravatarUrl(draft.fightcadeEmail, 64)} alt="Preview"
+                        style={{ width: 48, height: 48, objectFit: 'cover', border: `1px solid ${C.border}` }} />
+                      <span style={{ fontFamily: FONTS.mono, fontSize: 9, color: C.muted, letterSpacing: '0.1em' }}>PREVIEW</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
                 <div><label style={lbl}>TWITCH (USUÁRIO)</label>
                   <Input value={draft.twitch} onChange={(v) => setDraft((d) => ({ ...d, twitch: v.replace(/^@/, '') }))} placeholder="seuusername" />
@@ -2237,6 +2317,7 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
                   city: hunter.city || '', platform: hunter.platform || '',
                   mains2002: hunter.mains2002 || [], mainsUm: hunter.mainsUm || [],
                   twitch: hunter.twitch || '', youtube: hunter.youtube || '', discord: hunter.discord || '',
+                  fightcadeEmail: hunter.fightcadeEmail || '',
                 }); setEditing(false); }}>CANCELAR</Btn>
               </div>
             </div>

@@ -26,6 +26,7 @@ function profileFromDb(p) {
     twitch: p.twitch,
     youtube: p.youtube,
     discord: p.discord,
+    fightcadeEmail: p.fightcade_email,
     joinedAt: p.joined_at,
     isAdmin: p.is_admin,
     isBanned: p.is_banned,
@@ -99,6 +100,7 @@ export async function updateMyProfile(userId, patch) {
   if (patch.twitch !== undefined) dbPatch.twitch = patch.twitch
   if (patch.youtube !== undefined) dbPatch.youtube = patch.youtube
   if (patch.discord !== undefined) dbPatch.discord = patch.discord
+  if (patch.fightcadeEmail !== undefined) dbPatch.fightcade_email = patch.fightcadeEmail
 
   const { data, error } = await supabase
     .from('profiles')
