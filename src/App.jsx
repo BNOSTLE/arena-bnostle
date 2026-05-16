@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { supabase, hasSupabase } from './lib/supabase';
+import * as api from './lib/api';
 
 // ════════════════════════════════════════════════════════════
 // ARENA BNOSTLE — KOF 2002/UM — v0.5
@@ -29,7 +31,7 @@ const PIX_CONFIG = {
 // (Server Settings → Integrations → Webhooks → New Webhook)
 // Copia a URL e cole aqui. Pra desativar: deixa string vazia.
 const DISCORD_WEBHOOK = {
-  url: 'https://discord.com/api/webhooks/1504254798176981014/4eHVGz6CbGsd6XoeEXDhkBF_FEfGBD7iD9ON0PX557YEkksZ65MamWGrRjKdf6hFaVEw', 
+  url: '', // exemplo: 'https://discord.com/api/webhooks/123456/abcdef'
   notifyOnScheduled: true,  // posta quando admin agenda novo duelo
   notifyOnLive: true,       // posta quando admin marca como AO VIVO
   notifyOnCompleted: true,  // posta resultado quando termina
@@ -3554,20 +3556,45 @@ export default function App() {
     document.head.appendChild(style);
 
     (async () => {
-      const seeded = await loadJSON(KEYS.seeded, false);
-      if (!seeded) {
-        const seed = generateSeed();
-        await saveJSON(KEYS.players, seed.players);
-        await saveJSON(KEYS.matches, seed.matches);
-        await saveJSON(KEYS.seeded, true);
-        setPlayers(seed.players); setMatches(seed.matches);
+      if (hasSupabase) {
+        // MODO PRODUÇÃO: carrega do Supabase
+        try {
+          const [pl, ma, session] = await Promise.all([
+            api.fetchAllProfiles(),
+            api.fetchAllMatches(),
+            api.getSession(),
+          ]);
+          setPlayers(pl);
+          setMatches(ma);
+          if (session?.user) setCurrentUserId(session.user.id);
+
+          // Listener pra mudanças de login
+          api.onAuthChange(async (session) => {
+            setCurrentUserId(session?.user?.id || null);
+            if (session?.user) {
+              try { setPlayers(await api.fetchAllProfiles()); } catch {}
+            }
+          });
+        } catch (e) {
+          console.error('Erro carregando do Supabase:', e);
+          alert('Erro de conexão. Abre o console (F12) pra detalhes.');
+        }
       } else {
-        const [pl, ma] = await Promise.all([loadJSON(KEYS.players, []), loadJSON(KEYS.matches, [])]);
-        setPlayers(pl); setMatches(ma);
+        // MODO DEMO: localStorage
+        const seeded = await loadJSON(KEYS.seeded, false);
+        if (!seeded) {
+          const seed = generateSeed();
+          await saveJSON(KEYS.players, seed.players);
+          await saveJSON(KEYS.matches, seed.matches);
+          await saveJSON(KEYS.seeded, true);
+          setPlayers(seed.players); setMatches(seed.matches);
+        } else {
+          const [pl, ma] = await Promise.all([loadJSON(KEYS.players, []), loadJSON(KEYS.matches, [])]);
+          setPlayers(pl); setMatches(ma);
+        }
+        const myLogin = await loadJSON(KEYS.myLogin, null, false);
+        if (myLogin) setCurrentUserId(myLogin);
       }
-      // Login local persistente (simulação de sessão)
-      const myLogin = await loadJSON(KEYS.myLogin, null, false);
-      if (myLogin) setCurrentUserId(myLogin);
       setLoaded(true);
     })();
   }, []);
@@ -3611,16 +3638,39 @@ export default function App() {
     setArchitectReveal(null);
   };
 
-  const persistMatches = async (next) => { setMatches(next); await saveJSON(KEYS.matches, next); };
-  const persistPlayers = async (next) => { setPlayers(next); await saveJSON(KEYS.players, next); };
+  const persistMatches = async (next) => {
+    setMatches(next);
+    if (!hasSupabase) await saveJSON(KEYS.matches, next);
+  };
+  const persistPlayers = async (next) => {
+    setPlayers(next);
+    if (!hasSupabase) await saveJSON(KEYS.players, next);
+  };
 
-  const currentUser = currentUserId ? (
-    currentUserId === 'admin' ? { ...playerById['admin'], isAdmin: true } : playerById[currentUserId] ? { ...playerById[currentUserId], isAdmin: false } : null
-  ) : null;
+  const currentUser = currentUserId
+    ? (hasSupabase
+        ? (playerById[currentUserId] ? { ...playerById[currentUserId], isAdmin: !!playerById[currentUserId].isAdmin } : null)
+        : (currentUserId === 'admin'
+            ? { ...playerById['admin'], isAdmin: true }
+            : playerById[currentUserId] ? { ...playerById[currentUserId], isAdmin: false } : null))
+    : null;
 
   // Login handlers
   const handleLogin = async (provider, mockHunter = null) => {
-    if (provider === null) { setShowLogin(false); return; } // visitante
+    if (provider === null) { setShowLogin(false); return; }
+
+    if (hasSupabase) {
+      // OAuth REAL — abre popup do provider
+      try {
+        await api.signInWith(provider);
+        // Vai redirecionar pro Google/Discord/Twitch e voltar
+      } catch (e) {
+        alert('Erro de login: ' + e.message);
+      }
+      return;
+    }
+
+    // MODO DEMO
     if (mockHunter) {
       if (mockHunter.isBanned) { alert('Este lutador foi banido da Arena.'); return; }
       setCurrentUserId(mockHunter.id);
@@ -3628,8 +3678,6 @@ export default function App() {
       setShowLogin(false);
       return;
     }
-    // Login social genérico → escolhe primeiro hunter disponível com aquele provider
-    // Em produção, isso vira um signInWithOAuth de verdade
     const candidate = players.find((p) => p.id !== 'admin' && p.authProvider === provider && !p.isBanned);
     if (candidate) {
       setCurrentUserId(candidate.id);
@@ -3640,23 +3688,39 @@ export default function App() {
     setShowLogin(false);
   };
   const handleAdminLogin = async () => {
+    if (hasSupabase) {
+      alert('Em produção, vire admin pelo SQL no Supabase. Veja o guia SETUP.md.');
+      return;
+    }
     setCurrentUserId('admin');
     await saveJSON(KEYS.myLogin, 'admin', false);
     setShowLogin(false);
   };
   const handleLogout = async () => {
+    if (hasSupabase) {
+      await api.signOut();
+    } else {
+      await saveJSON(KEYS.myLogin, null, false);
+    }
     setCurrentUserId(null);
-    await saveJSON(KEYS.myLogin, null, false);
     setView('home');
   };
 
   // Match operations (admin only - guarded by UI)
-  const scheduleMatch = (m) => {
-    persistMatches([m, ...matches]);
+  const scheduleMatch = async (m) => {
+    let savedMatch = m;
+    if (hasSupabase) {
+      try {
+        savedMatch = await api.createMatch({ ...m, createdBy: currentUserId });
+        setMatches((prev) => [savedMatch, ...prev]);
+      } catch (e) { alert('Erro ao agendar: ' + e.message); return; }
+    } else {
+      persistMatches([m, ...matches]);
+    }
     // Notifica Discord (silencioso se webhook desativado)
     if (DISCORD_WEBHOOK.notifyOnScheduled) {
-      const p1 = playerById[m.player1Id], p2 = playerById[m.player2Id];
-      const v = VERSIONS[m.version];
+      const p1 = playerById[savedMatch.player1Id], p2 = playerById[savedMatch.player2Id];
+      const v = VERSIONS[savedMatch.version];
       if (p1 && p2 && v) {
         notifyDiscord({
           embeds: [{
@@ -3664,7 +3728,7 @@ export default function App() {
             description: `**${p1.tag}** vs **${p2.tag}**`,
             color: 0xDC2626,
             fields: [
-              { name: '📅 Data', value: fmtDateTime(m.scheduledAt), inline: true },
+              { name: '📅 Data', value: fmtDateTime(savedMatch.scheduledAt), inline: true },
               { name: '🎮 Versão', value: v.fullLabel, inline: true },
             ],
             footer: { text: 'ARENA BNOSTLE' },
@@ -3675,9 +3739,16 @@ export default function App() {
     }
   };
 
-  const updateMatch = (id, patch) => {
+  const updateMatch = async (id, patch) => {
     const previous = matches.find((m) => m.id === id);
-    persistMatches(matches.map((m) => m.id === id ? { ...m, ...patch } : m));
+    if (hasSupabase) {
+      try {
+        const updated = await api.updateMatch(id, patch);
+        setMatches((prev) => prev.map((m) => m.id === id ? updated : m));
+      } catch (e) { alert('Erro ao atualizar: ' + e.message); return; }
+    } else {
+      persistMatches(matches.map((m) => m.id === id ? { ...m, ...patch } : m));
+    }
 
     // Detectar transições e notificar Discord
     if (previous && patch.status && patch.status !== previous.status) {
@@ -3721,60 +3792,98 @@ export default function App() {
       }
     }
   };
-  const deleteMatch = (id) => persistMatches(matches.filter((m) => m.id !== id));
+
+  const deleteMatch = async (id) => {
+    if (hasSupabase) {
+      try {
+        await api.deleteMatch(id);
+        setMatches((prev) => prev.filter((m) => m.id !== id));
+      } catch (e) { alert('Erro ao deletar: ' + e.message); }
+    } else {
+      persistMatches(matches.filter((m) => m.id !== id));
+    }
+  };
 
   // Profile updates (own only)
-  const updateOwnProfile = (patch) => {
+  const updateOwnProfile = async (patch) => {
     if (!currentUser || currentUser.isAdmin) return;
     if (patch.tag && patch.tag !== currentUser.tag && players.some((p) => p.tag === patch.tag)) {
       alert(`Tag "${patch.tag}" já está em uso.`); return;
     }
-    persistPlayers(players.map((p) => p.id === currentUser.id ? { ...p, ...patch } : p));
+    if (hasSupabase) {
+      try {
+        const updated = await api.updateMyProfile(currentUser.id, patch);
+        setPlayers((prev) => prev.map((p) => p.id === currentUser.id ? updated : p));
+      } catch (e) { alert('Erro ao salvar: ' + e.message); }
+    } else {
+      persistPlayers(players.map((p) => p.id === currentUser.id ? { ...p, ...patch } : p));
+    }
   };
 
   // ─── HANDLERS DE MODERAÇÃO (admin only) ─────────────────
-  const banPlayer = (playerId, reason) => {
+  const banPlayer = async (playerId, reason) => {
     if (!currentUser?.isAdmin) return;
-    persistPlayers(players.map((p) => p.id === playerId
-      ? { ...p, isBanned: true, banReason: reason || null, bannedAt: new Date().toISOString() }
-      : p));
+    const patch = { isBanned: true, banReason: reason || null, bannedAt: new Date().toISOString() };
+    if (hasSupabase) {
+      try {
+        const updated = await api.adminUpdateProfile(playerId, patch);
+        setPlayers((prev) => prev.map((p) => p.id === playerId ? updated : p));
+      } catch (e) { alert('Erro ao banir: ' + e.message); }
+    } else {
+      persistPlayers(players.map((p) => p.id === playerId ? { ...p, ...patch } : p));
+    }
   };
-  const unbanPlayer = (playerId) => {
+  const unbanPlayer = async (playerId) => {
     if (!currentUser?.isAdmin) return;
-    persistPlayers(players.map((p) => p.id === playerId
-      ? { ...p, isBanned: false, banReason: null, bannedAt: null }
-      : p));
+    const patch = { isBanned: false, banReason: null, bannedAt: null };
+    if (hasSupabase) {
+      try {
+        const updated = await api.adminUpdateProfile(playerId, patch);
+        setPlayers((prev) => prev.map((p) => p.id === playerId ? updated : p));
+      } catch (e) { alert('Erro ao desbanir: ' + e.message); }
+    } else {
+      persistPlayers(players.map((p) => p.id === playerId ? { ...p, ...patch } : p));
+    }
   };
-  const adminEditProfile = (playerId, patch) => {
+  const adminEditProfile = async (playerId, patch) => {
     if (!currentUser?.isAdmin) return;
     if (patch.tag && players.some((p) => p.id !== playerId && p.tag === patch.tag)) {
       alert(`Tag "${patch.tag}" já está em uso por outro lutador.`); return;
     }
-    persistPlayers(players.map((p) => p.id === playerId ? { ...p, ...patch } : p));
+    if (hasSupabase) {
+      try {
+        const updated = await api.adminUpdateProfile(playerId, patch);
+        setPlayers((prev) => prev.map((p) => p.id === playerId ? updated : p));
+      } catch (e) { alert('Erro ao salvar: ' + e.message); }
+    } else {
+      persistPlayers(players.map((p) => p.id === playerId ? { ...p, ...patch } : p));
+    }
   };
 
   // EXCLUSÃO PERMANENTE — irreversível, com cautela
-  // Estratégia: marca o perfil como "deletado" em vez de apagar do banco.
-  // Lutas antigas continuam aparecendo, mas com nome '(perfil deletado)'.
-  // O lutador não consegue mais logar, edit perfil, agendar, etc.
-  const deletePlayer = (playerId) => {
+  const deletePlayer = async (playerId) => {
     if (!currentUser?.isAdmin) return;
     const target = players.find((p) => p.id === playerId);
     if (!target || target.id === 'admin') return;
-    persistPlayers(players.map((p) => p.id === playerId ? {
-      ...p,
+    const patch = {
       isDeleted: true,
-      isBanned: true,           // garante que some das listas
-      tag: 'DELETED',
+      isBanned: true,
+      tag: 'DELETED' + String(Date.now()).slice(-3),
       name: '(perfil deletado)',
       bio: null,
       avatarUrl: null,
-      email: null,
-      authProvider: null,
       banReason: null,
       bannedAt: null,
       deletedAt: new Date().toISOString(),
-    } : p));
+    };
+    if (hasSupabase) {
+      try {
+        const updated = await api.adminUpdateProfile(playerId, patch);
+        setPlayers((prev) => prev.map((p) => p.id === playerId ? updated : p));
+      } catch (e) { alert('Erro ao deletar: ' + e.message); }
+    } else {
+      persistPlayers(players.map((p) => p.id === playerId ? { ...p, ...patch } : p));
+    }
   };
 
   const resetDemo = async () => {
