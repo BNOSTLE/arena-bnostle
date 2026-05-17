@@ -526,6 +526,33 @@ function shade(hex, amt) {
   r = Math.max(0, Math.min(255, r)); g = Math.max(0, Math.min(255, g)); b = Math.max(0, Math.min(255, b));
   return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
 }
+// ─── LOGO DA ARENA: MINI RINGUE DE LUTA ─────────────────────
+// Vista de cima estilizada, rotacionado 45° pra parecer um diamante
+// viewBox 141x141 acomoda a diagonal do quadrado rotacionado sem cortar
+function RingLogo({ size = 32 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 142 142" style={{ flexShrink: 0, display: 'block' }} aria-label="Arena Bnostle">
+      <g transform="rotate(45 71 71)">
+        {/* Base externa (apron/saia do ringue) — preto profundo */}
+        <rect x="21" y="21" width="100" height="100" fill="#000" />
+        {/* Postes dos cantos */}
+        <rect x="21" y="21" width="14" height="14" fill={C.red} />
+        <rect x="107" y="21" width="14" height="14" fill={C.red} />
+        <rect x="21" y="107" width="14" height="14" fill={C.red} />
+        <rect x="107" y="107" width="14" height="14" fill={C.red} />
+        {/* Cordas (3 linhas vermelhas em volta) */}
+        <rect x="27" y="27" width="88" height="88" fill="none" stroke={C.red} strokeWidth="2.5" />
+        <rect x="32" y="32" width="78" height="78" fill="none" stroke={C.red} strokeWidth="1.5" opacity="0.85" />
+        <rect x="37" y="37" width="68" height="68" fill="none" stroke={C.red} strokeWidth="1" opacity="0.65" />
+        {/* Tatame (lona interna) */}
+        <rect x="43" y="43" width="56" height="56" fill="#1A1A1F" />
+        {/* Logo do centro: losango vermelho discreto */}
+        <rect x="63" y="63" width="16" height="16" fill={C.red} transform="rotate(45 71 71)" />
+      </g>
+    </svg>
+  );
+}
+
 function Avatar({ player, size = 36, onClick }) {
   if (!player) return <div style={{ width: size, height: size, background: C.border }} />;
   // Prioridade: avatarUrl explícito > Gravatar via fightcadeEmail > iniciais coloridas
@@ -1160,7 +1187,7 @@ function Header({ playerCount, matchCount, liveCount, currentUser, onLogout, onP
       <div style={{ padding: isMobile ? '16px 14px 12px' : '24px 28px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: isMobile ? 12 : 20, position: 'relative' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, marginBottom: 4, flexWrap: 'wrap' }}>
-            <span style={{ width: isMobile ? 20 : 28, height: isMobile ? 20 : 28, background: C.red, transform: 'rotate(45deg)', flexShrink: 0 }} />
+            <RingLogo size={isMobile ? 22 : 32} />
             <span style={{ fontFamily: FONTS.mono, fontSize: isMobile ? 9 : 11, color: C.muted, letterSpacing: isMobile ? '0.1em' : '0.2em' }}>// KOF 2002 · UM · XV · LIGA OFICIAL</span>
             {liveCount > 0 && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 10, color: '#fff', background: C.red, padding: '3px 8px', letterSpacing: '0.15em' }}>
