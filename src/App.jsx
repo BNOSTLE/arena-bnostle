@@ -1180,8 +1180,8 @@ function Header({ playerCount, matchCount, liveCount, currentUser, onLogout, onP
         <div style={{ display: 'flex', gap: isMobile ? 8 : 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           {!isMobile && (
             <div style={{ display: 'flex', gap: 16, fontFamily: FONTS.mono, fontSize: 12 }}>
-              <Stat label="LUTADORES" value={String(playerCount).padStart(3, '0')} />
-              <Stat label="DUELOS" value={String(matchCount).padStart(3, '0')} />
+              <Stat label="LUTADORES" value={String(playerCount).padStart(5, '0')} />
+              <Stat label="DUELOS" value={String(matchCount).padStart(5, '0')} />
             </div>
           )}
           {PIX_CONFIG.enabled && (
@@ -1205,8 +1205,8 @@ function Header({ playerCount, matchCount, liveCount, currentUser, onLogout, onP
         </div>
         {isMobile && (
           <div style={{ display: 'flex', gap: 16, fontFamily: FONTS.mono, fontSize: 11, width: '100%' }}>
-            <Stat label="LUTADORES" value={String(playerCount).padStart(3, '0')} />
-            <Stat label="DUELOS" value={String(matchCount).padStart(3, '0')} />
+            <Stat label="LUTADORES" value={String(playerCount).padStart(5, '0')} />
+            <Stat label="DUELOS" value={String(matchCount).padStart(5, '0')} />
           </div>
         )}
       </div>
