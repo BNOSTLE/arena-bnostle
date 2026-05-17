@@ -1187,7 +1187,7 @@ function Header({ playerCount, matchCount, liveCount, currentUser, onLogout, onP
       <div style={{ padding: isMobile ? '16px 14px 12px' : '24px 28px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: isMobile ? 12 : 20, position: 'relative' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, marginBottom: 4, flexWrap: 'wrap' }}>
-            <RingLogo size={isMobile ? 22 : 32} />
+            <RingLogo size={isMobile ? 36 : 52} />
             <span style={{ fontFamily: FONTS.mono, fontSize: isMobile ? 9 : 11, color: C.muted, letterSpacing: isMobile ? '0.1em' : '0.2em' }}>// KOF 2002 · UM · XV · LIGA OFICIAL</span>
             {liveCount > 0 && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 10, color: '#fff', background: C.red, padding: '3px 8px', letterSpacing: '0.15em' }}>
