@@ -46,6 +46,9 @@ function matchFromDb(m) {
     status: m.status,
     winnerId: m.winner_id,
     score: m.score,
+    format: m.format || 'casual',
+    roundsWonP1: m.rounds_won_p1,
+    roundsWonP2: m.rounds_won_p2,
     streamUrl: m.stream_url,
     vodUrl: m.vod_url,
     vodTitle: m.vod_title,
@@ -66,6 +69,9 @@ function matchToDb(m, partial = false) {
   if (m.status !== undefined) out.status = m.status
   if (m.winnerId !== undefined) out.winner_id = m.winnerId
   if (m.score !== undefined) out.score = m.score
+  if (m.format !== undefined) out.format = m.format
+  if (m.roundsWonP1 !== undefined) out.rounds_won_p1 = m.roundsWonP1
+  if (m.roundsWonP2 !== undefined) out.rounds_won_p2 = m.roundsWonP2
   if (m.streamUrl !== undefined) out.stream_url = m.streamUrl
   if (m.vodUrl !== undefined) out.vod_url = m.vodUrl
   if (m.vodTitle !== undefined) out.vod_title = m.vodTitle

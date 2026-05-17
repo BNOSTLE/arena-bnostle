@@ -182,6 +182,24 @@ function isCompetitor(p) {
 // ─── ELO ENGINE (por versão!) ───────────────────────────────
 function expectedScore(rA, rB) { return 1 / (1 + Math.pow(10, (rB - rA) / 400)); }
 
+// Calcula K efetivo baseado no formato + placar de rounds
+// Premia placares "domináveis" e protege placares "apertados"
+// Lutas sem placar (formato 'casual' antigo) usam K cheio
+function effectiveK(match) {
+  const fmt = match.format || 'casual';
+  const r1 = match.roundsWonP1;
+  const r2 = match.roundsWonP2;
+  if (fmt === 'casual' || r1 == null || r2 == null) return K_FACTOR;
+  const maxRounds = fmt === 'FT3' ? 3 : fmt === 'FT5' ? 5 : fmt === 'FT10' ? 10 : 3;
+  const winnerRounds = Math.max(r1, r2);
+  const loserRounds = Math.min(r1, r2);
+  if (winnerRounds !== maxRounds) return K_FACTOR; // placar inválido, fallback
+  // dominância: 1.0 = vitória sem perder round | 0.5 = empate técnico no limite
+  const dominance = (winnerRounds - loserRounds) / winnerRounds;
+  // K vai de 50% (placar apertado, ex 3-2) a 100% (placar perfeito, ex 3-0)
+  return Math.round(K_FACTOR * (0.5 + 0.5 * dominance));
+}
+
 // Ratings por versão — retorna { '2002': {playerId: {elo,w,l}}, 'um': {...} }
 function computeRatingsByVersion(players, matches, atDate) {
   const result = {};
@@ -197,7 +215,8 @@ function computeRatingsByVersion(players, matches, atDate) {
       if (!a || !b) continue;
       const eA = expectedScore(a.elo, b.elo);
       const sA = m.winnerId === m.player1Id ? 1 : 0;
-      const dA = K_FACTOR * (sA - eA);
+      const k = effectiveK(m);
+      const dA = k * (sA - eA);
       a.elo += dA; b.elo -= dA;
       if (sA === 1) { a.w++; b.l++; } else { a.l++; b.w++; }
       a.games++; b.games++;
@@ -220,7 +239,8 @@ function computeEloHistory(playerId, version, players, matches) {
     if (a == null || b == null) continue;
     const eA = expectedScore(a, b);
     const sA = m.winnerId === m.player1Id ? 1 : 0;
-    const dA = K_FACTOR * (sA - eA);
+    const k = effectiveK(m);
+    const dA = k * (sA - eA);
     elos[m.player1Id] += dA; elos[m.player2Id] -= dA;
     if (m.player1Id === playerId || m.player2Id === playerId) {
       current = Math.round(elos[playerId]);
@@ -1865,6 +1885,7 @@ function MatchDetailView({ match, players, matches, playerById, ratingsByVersion
           <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <div style={{ fontFamily: FONTS.display, fontSize: isMobile ? 36 : 56, color: C.amber, letterSpacing: '0.1em', lineHeight: 0.9 }}>VS</div>
             {match.score && <div style={{ fontFamily: FONTS.mono, fontSize: isMobile ? 16 : 22, color: C.text, letterSpacing: '0.1em' }}>{match.score}</div>}
+            {match.format && <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.amber, letterSpacing: '0.2em', marginTop: 4 }}>· {match.format} ·</div>}
           </div>
           <MatchDetailFighter player={p2} elo={e2Now} rank={r2} isWinner={winner?.id === p2.id} isLoser={isPast && winner?.id === p1.id} side="right" isMobile={isMobile} onClick={() => onOpenHunter(p2.id)} />
         </div>
@@ -2737,7 +2758,7 @@ function NewsEditor({ initial, onSave, onCancel }) {
   );
 }
 
-function AdminPanel({ players, matches, ratingsByVersion, playerById, onScheduleMatch, onUpdateMatch, onDeleteMatch, onResetDemo, onBanPlayer, onUnbanPlayer, onAdminEditProfile, onDeletePlayer }) {
+function AdminPanel({ players, matches, ratingsByVersion, playerById, onScheduleMatch, onUpdateMatch, onDeleteMatch, onReopenMatch, onResetDemo, onBanPlayer, onUnbanPlayer, onAdminEditProfile, onDeletePlayer }) {
   const [adminTab, setAdminTab] = useState('duelos');
   const pending = useMemo(() => matches.filter((m) => (m.status === 'scheduled' && new Date(m.scheduledAt) < new Date()) || m.status === 'live')
     .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt)), [matches]);
@@ -2772,25 +2793,20 @@ function AdminPanel({ players, matches, ratingsByVersion, playerById, onSchedule
         <>
           <AdminScheduleForm players={players} ratingsByVersion={ratingsByVersion} onSchedule={onScheduleMatch} />
 
-          <Panel title={`RESULTADOS PENDENTES · ${pending.length}`} accent={C.amber}>
-            {pending.length === 0 ? <Empty msg="Nenhum duelo aguardando resultado. ✓" /> : (
+          <Panel title={`DUELOS AGENDADOS · ${pending.length + upcoming.length}`} accent={C.amber}>
+            {(pending.length + upcoming.length) === 0 ? <Empty msg="Nenhum duelo agendado. Use o formulário acima." /> : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Pendentes (passou da hora ou ao vivo) primeiro */}
                 {pending.map((m) => <AdminMatchEditor key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onUpdate={onUpdateMatch} onDelete={onDeleteMatch} />)}
-              </div>
-            )}
-          </Panel>
-
-          <Panel title={`PRÓXIMOS DUELOS · ${upcoming.length}`}>
-            {upcoming.length === 0 ? <Empty msg="Nenhum duelo agendado. Use o formulário acima." /> : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {upcoming.map((m) => <AdminUpcomingEditor key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onUpdate={onUpdateMatch} onDelete={onDeleteMatch} />)}
+                {/* Próximos depois */}
+                {upcoming.map((m) => <AdminMatchEditor key={m.id} match={m} playerById={playerById} ratingsByVersion={ratingsByVersion} onUpdate={onUpdateMatch} onDelete={onDeleteMatch} />)}
               </div>
             )}
           </Panel>
 
           <Panel title="CONCLUÍDOS RECENTES (editar VOD)">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {completed.map((m) => <AdminVodEditor key={m.id} match={m} playerById={playerById} onUpdate={onUpdateMatch} />)}
+              {completed.map((m) => <AdminVodEditor key={m.id} match={m} playerById={playerById} onUpdate={onUpdateMatch} onDelete={onDeleteMatch} onReopen={onReopenMatch} />)}
             </div>
           </Panel>
         </>
@@ -3095,6 +3111,7 @@ function AdminEditProfileModal({ player, onSave, onClose }) {
 
 function AdminScheduleForm({ players, ratingsByVersion, onSchedule }) {
   const [version, setVersion] = useState('2002');
+  const [format, setFormat] = useState('FT3');
   const [p1, setP1] = useState('');
   const [p2, setP2] = useState('');
   const [datetime, setDatetime] = useState(() => {
@@ -3112,7 +3129,7 @@ function AdminScheduleForm({ players, ratingsByVersion, onSchedule }) {
     e.preventDefault();
     if (!p1 || !p2 || !datetime || p1 === p2) return;
     onSchedule({
-      id: uid(), player1Id: p1, player2Id: p2, version,
+      id: uid(), player1Id: p1, player2Id: p2, version, format,
       scheduledAt: new Date(datetime).toISOString(),
       status: 'scheduled', streamUrl: null, isBroadcasted: false,
       notes: notes.trim() || null, createdBy: 'admin', createdAt: new Date().toISOString(),
@@ -3133,6 +3150,14 @@ function AdminScheduleForm({ players, ratingsByVersion, onSchedule }) {
               </button>
             ))}
           </div>
+        </div>
+        <div>
+          <label style={lbl}>FORMATO</label>
+          <Select value={format} onChange={setFormat}>
+            <option value="FT3">FT3 (Best of 5)</option>
+            <option value="FT5">FT5 (Best of 9)</option>
+            <option value="FT10">FT10 (Best of 19)</option>
+          </Select>
         </div>
         <div>
           <label style={lbl}>LUTADOR 1</label>
@@ -3158,10 +3183,13 @@ function AdminScheduleForm({ players, ratingsByVersion, onSchedule }) {
         </div>
         {prediction && (
           <div style={{ gridColumn: '1 / -1', background: C.bg, border: `1px solid ${C.border}`, padding: 12 }}>
-            <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, letterSpacing: '0.15em', marginBottom: 6 }}>PREVISÃO DE ELO ({VERSIONS[version].label})</div>
+            <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, letterSpacing: '0.15em', marginBottom: 6 }}>PREVISÃO DE ELO ({VERSIONS[version].label}) · K máx={K_FACTOR}</div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: FONTS.mono, fontSize: 13, gap: 16, flexWrap: 'wrap' }}>
               <span style={{ color: C.text }}>Se vencer {p1 ? players.find(x => x.id === p1)?.tag : '?'}: <span style={{ color: C.green }}>+{prediction.aWins}</span></span>
               <span style={{ color: C.text }}>Se vencer {p2 ? players.find(x => x.id === p2)?.tag : '?'}: <span style={{ color: C.green }}>+{-prediction.aLoses}</span></span>
+            </div>
+            <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, marginTop: 6 }}>
+              Valores acima são pra placar "perfeito" (sem perder round). Placar apertado reduz ELO.
             </div>
           </div>
         )}
@@ -3175,11 +3203,23 @@ function AdminScheduleForm({ players, ratingsByVersion, onSchedule }) {
 
 function AdminMatchEditor({ match, playerById, ratingsByVersion, onUpdate, onDelete }) {
   const [winnerId, setWinnerId] = useState(match.winnerId || '');
-  const [score, setScore] = useState(match.score || '');
+  const [format, setFormat] = useState(match.format && match.format !== 'casual' ? match.format : 'FT3');
+  const [r1, setR1] = useState(match.roundsWonP1 != null ? String(match.roundsWonP1) : '');
+  const [r2, setR2] = useState(match.roundsWonP2 != null ? String(match.roundsWonP2) : '');
   const [vodUrl, setVodUrl] = useState(match.vodUrl || '');
   const [vodTitle, setVodTitle] = useState(match.vodTitle || '');
   const [streamUrl, setStreamUrl] = useState(match.streamUrl || '');
   const [fetchingMeta, setFetchingMeta] = useState(false);
+
+  // Auto-detectar vencedor pelo placar quando ambos rounds preenchidos
+  useEffect(() => {
+    const n1 = parseInt(r1, 10), n2 = parseInt(r2, 10);
+    if (!isNaN(n1) && !isNaN(n2) && n1 !== n2) {
+      const inferredWinner = n1 > n2 ? match.player1Id : match.player2Id;
+      if (winnerId !== inferredWinner) setWinnerId(inferredWinner);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r1, r2]);
 
   const fetchMeta = async () => {
     if (!vodUrl.trim()) return;
@@ -3192,15 +3232,52 @@ function AdminMatchEditor({ match, playerById, ratingsByVersion, onUpdate, onDel
     if (!streamUrl.trim()) { alert('Cole o link da live primeiro.'); return; }
     onUpdate(match.id, { status: 'live', streamUrl: streamUrl.trim() });
   };
+
+  const maxRounds = format === 'FT3' ? 3 : format === 'FT5' ? 5 : format === 'FT10' ? 10 : 3;
+  const n1 = parseInt(r1, 10), n2 = parseInt(r2, 10);
+  const hasRounds = !isNaN(n1) && !isNaN(n2);
+  const winnerRounds = hasRounds ? Math.max(n1, n2) : null;
+  const loserRounds = hasRounds ? Math.min(n1, n2) : null;
+
+  // Validação do placar
+  let scoreError = null;
+  if (hasRounds) {
+    if (n1 === n2) scoreError = 'Empate não é permitido.';
+    else if (winnerRounds !== maxRounds) scoreError = `O vencedor precisa chegar a ${maxRounds} vitórias (formato ${format}).`;
+    else if (loserRounds >= maxRounds) scoreError = `Placar inválido pro formato ${format}.`;
+  }
+
+  // Calcular K efetivo que será aplicado (preview)
+  let kPreview = null;
+  if (hasRounds && !scoreError) {
+    const dominance = (winnerRounds - loserRounds) / winnerRounds;
+    kPreview = Math.round(24 * (0.5 + 0.5 * dominance));
+  }
+
+  const scoreText = hasRounds ? `${n1}-${n2}` : '';
+
   const save = () => {
     if (!winnerId) { alert('Selecione o vencedor.'); return; }
+    if (scoreError) { alert(scoreError); return; }
+    if (!hasRounds) { alert('Preencha o placar de rounds.'); return; }
+
     onUpdate(match.id, {
-      status: 'completed', winnerId, score: score || null,
-      vodUrl: vodUrl.trim() || null, vodTitle: vodTitle.trim() || null,
-      streamUrl: null, isBroadcasted: !!vodUrl.trim(),
+      status: 'completed',
+      winnerId,
+      score: scoreText || null,
+      format,
+      roundsWonP1: hasRounds ? n1 : null,
+      roundsWonP2: hasRounds ? n2 : null,
+      vodUrl: vodUrl.trim() || null,
+      vodTitle: vodTitle.trim() || null,
+      streamUrl: null,
+      isBroadcasted: !!vodUrl.trim(),
       completedAt: new Date().toISOString(),
     });
   };
+
+  const p1 = playerById[match.player1Id];
+  const p2 = playerById[match.player2Id];
 
   return (
     <div style={{ background: C.bg, border: `1px solid ${C.border}`, padding: 16 }}>
@@ -3221,6 +3298,43 @@ function AdminMatchEditor({ match, playerById, ratingsByVersion, onUpdate, onDel
         <Input value={streamUrl} onChange={setStreamUrl} placeholder="https://www.youtube.com/watch?v=... ou https://www.twitch.tv/seu_canal" />
       </div>
 
+      {/* Formato + Placar */}
+      <div style={{ background: C.elevated, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.amber}`, padding: 12, marginBottom: 12 }}>
+        <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.amber, letterSpacing: '0.15em', marginBottom: 8 }}>FORMATO & PLACAR</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
+          <div>
+            <label style={lbl}>FORMATO</label>
+            <Select value={format} onChange={setFormat}>
+              <option value="FT3">FT3 (Best of 5)</option>
+              <option value="FT5">FT5 (Best of 9)</option>
+              <option value="FT10">FT10 (Best of 19)</option>
+            </Select>
+          </div>
+          <div>
+            <label style={lbl}>{p1?.tag || 'P1'}</label>
+            <Input value={r1} onChange={(v) => setR1(v.replace(/[^0-9]/g, '').slice(0, 2))} placeholder="0" />
+          </div>
+          <div>
+            <label style={lbl}>{p2?.tag || 'P2'}</label>
+            <Input value={r2} onChange={(v) => setR2(v.replace(/[^0-9]/g, '').slice(0, 2))} placeholder="0" />
+          </div>
+          {kPreview && (
+            <div style={{ background: C.bg, border: `1px solid ${C.green}`, padding: '6px 10px', minWidth: 80 }}>
+              <div style={{ fontFamily: FONTS.mono, fontSize: 9, color: C.muted, letterSpacing: '0.15em' }}>ELO ±</div>
+              <div style={{ fontFamily: FONTS.display, fontSize: 18, color: C.green }}>{kPreview}</div>
+            </div>
+          )}
+        </div>
+        {scoreError && (
+          <div style={{ marginTop: 8, fontFamily: FONTS.mono, fontSize: 11, color: C.red }}>⚠ {scoreError}</div>
+        )}
+        {!scoreError && hasRounds && (
+          <div style={{ marginTop: 8, fontFamily: FONTS.mono, fontSize: 10, color: C.muted }}>
+            Placar: <strong style={{ color: C.text }}>{scoreText}</strong> ({format}) · K efetivo: <strong style={{ color: C.green }}>{kPreview}</strong>
+          </div>
+        )}
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
         {[match.player1Id, match.player2Id].map((id) => {
           const p = playerById[id]; if (!p) return null;
@@ -3239,8 +3353,7 @@ function AdminMatchEditor({ match, playerById, ratingsByVersion, onUpdate, onDel
         })}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr auto', gap: 8 }}>
-        <Input value={score} onChange={setScore} placeholder="3-1" />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
         <Input value={vodTitle} onChange={setVodTitle} placeholder="Título do VOD" />
         <Btn variant="ghost" size="sm" onClick={fetchMeta} disabled={!vodUrl.trim() || fetchingMeta}>{fetchingMeta ? '…' : '⤓ AUTO'}</Btn>
       </div>
@@ -3278,12 +3391,13 @@ function AdminUpcomingEditor({ match, playerById, ratingsByVersion, onUpdate, on
   );
 }
 
-function AdminVodEditor({ match, playerById, onUpdate }) {
+function AdminVodEditor({ match, playerById, onUpdate, onDelete, onReopen }) {
   const [vodUrl, setVodUrl] = useState(match.vodUrl || '');
   const [vodTitle, setVodTitle] = useState(match.vodTitle || '');
   const [editing, setEditing] = useState(false);
   const [fetching, setFetching] = useState(false);
   const p1 = playerById[match.player1Id], p2 = playerById[match.player2Id];
+  const winner = match.winnerId === p1?.id ? p1 : match.winnerId === p2?.id ? p2 : null;
 
   const fetchMeta = async () => {
     if (!vodUrl.trim()) return;
@@ -3293,11 +3407,25 @@ function AdminVodEditor({ match, playerById, onUpdate }) {
     setFetching(false);
   };
 
+  const reopen = () => {
+    if (!confirm(`Reabrir esta luta? O resultado será apagado e o ELO recalculado. Você poderá lançar novo resultado.`)) return;
+    onReopen(match.id);
+  };
+
+  const remove = () => {
+    if (!confirm(`APAGAR PERMANENTEMENTE esta luta?\n\n${p1?.tag} vs ${p2?.tag} (${match.score || '—'})\n\nEsta ação não pode ser desfeita e o ELO será recalculado.`)) return;
+    onDelete(match.id);
+  };
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: C.bg, border: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
       <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.muted, minWidth: 60 }}>{fmtDate(match.completedAt)}</span>
       <VersionBadge version={match.version} size="sm" />
-      <span style={{ fontFamily: FONTS.display, fontSize: 14, color: C.text, flex: 1 }}>{p1?.tag} vs {p2?.tag} · {match.score || '—'}</span>
+      <span style={{ fontFamily: FONTS.display, fontSize: 14, color: C.text, flex: 1, minWidth: 200 }}>
+        {p1?.tag} vs {p2?.tag} · <span style={{ color: C.amber }}>{match.score || '—'}</span>
+        {match.format && <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.muted, marginLeft: 6 }}>({match.format})</span>}
+        {winner && <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.green, marginLeft: 6 }}>★ {winner.tag}</span>}
+      </span>
       {editing ? (
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', flex: '1 1 100%' }}>
           <Input value={vodUrl} onChange={setVodUrl} placeholder="YouTube URL" />
@@ -3308,7 +3436,9 @@ function AdminVodEditor({ match, playerById, onUpdate }) {
       ) : (
         <>
           {match.vodUrl ? <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.green }}>✓ COM VOD</span> : <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.muted }}>SEM VOD</span>}
-          <Btn variant="ghost" size="sm" onClick={() => setEditing(true)}>{match.vodUrl ? 'EDITAR' : '+ ADICIONAR'}</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => setEditing(true)}>{match.vodUrl ? 'EDITAR VOD' : '+ VOD'}</Btn>
+          <Btn variant="amber" size="sm" onClick={reopen}>↻ REABRIR</Btn>
+          <button onClick={remove} style={{ background: 'transparent', border: `1px solid ${C.red}`, color: C.red, cursor: 'pointer', padding: '4px 10px', fontFamily: FONTS.mono, fontSize: 11, letterSpacing: '0.1em' }}>× APAGAR</button>
         </>
       )}
     </div>
@@ -3896,6 +4026,26 @@ export default function App() {
     }
   };
 
+  // Reabrir luta concluída: limpa resultado e volta pra status agendado
+  const reopenMatch = async (id) => {
+    const patch = {
+      status: 'scheduled',
+      winnerId: null,
+      score: null,
+      roundsWonP1: null,
+      roundsWonP2: null,
+      completedAt: null,
+    };
+    if (hasSupabase) {
+      try {
+        const updated = await api.updateMatch(id, patch);
+        setMatches((prev) => prev.map((m) => m.id === id ? updated : m));
+      } catch (e) { alert('Erro ao reabrir: ' + e.message); }
+    } else {
+      persistMatches(matches.map((m) => m.id === id ? { ...m, ...patch } : m));
+    }
+  };
+
   // Profile updates (own only)
   const updateOwnProfile = async (patch) => {
     if (!currentUser) return;
@@ -4041,7 +4191,7 @@ export default function App() {
             {view === 'anual' && <RankingView players={players} matches={matches} mode="anual" onOpenHunter={openHunter} />}
             {view === 'campeonato' && <ChampionshipView players={players} matches={matches} ratingsByVersion={ratingsByVersion} isAdmin={isAdmin} onOpenHunter={openHunter} />}
             {view === 'noticias' && <NewsView currentUser={currentUser} onOpenHunter={openHunter} />}
-            {view === 'admin' && isAdmin && <AdminPanel players={players} matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onScheduleMatch={scheduleMatch} onUpdateMatch={updateMatch} onDeleteMatch={deleteMatch} onResetDemo={resetDemo} onBanPlayer={banPlayer} onUnbanPlayer={unbanPlayer} onAdminEditProfile={adminEditProfile} onDeletePlayer={deletePlayer} onOpenMatch={openMatch} />}
+            {view === 'admin' && isAdmin && <AdminPanel players={players} matches={matches} ratingsByVersion={ratingsByVersion} playerById={playerById} onScheduleMatch={scheduleMatch} onUpdateMatch={updateMatch} onDeleteMatch={deleteMatch} onReopenMatch={reopenMatch} onResetDemo={resetDemo} onBanPlayer={banPlayer} onUnbanPlayer={unbanPlayer} onAdminEditProfile={adminEditProfile} onDeletePlayer={deletePlayer} onOpenMatch={openMatch} />}
           </>
         )}
       </div>
