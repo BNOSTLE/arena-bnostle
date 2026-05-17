@@ -734,14 +734,14 @@ function LoginScreen({ players, onLogin, onLoginAsAdmin }) {
             ARENA<br /><span style={{ color: C.red }}>BNOSTLE</span>
           </h1>
           <div style={{ fontFamily: FONTS.body, fontSize: 14, color: C.muted, marginTop: 16, letterSpacing: '0.04em' }}>
-            KING OF FIGHTERS 2002/UM · LIGA OFICIAL
+            KOF 2002 · UM · XV · LIGA OFICIAL
           </div>
         </div>
 
         <div style={{ background: C.elevated, border: `1px solid ${C.border}`, padding: 28 }}>
           <div style={{ fontFamily: FONTS.display, fontSize: 22, color: C.text, letterSpacing: '0.05em', marginBottom: 6, textAlign: 'center' }}>ENTRAR NA ARENA</div>
           <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, textAlign: 'center', marginBottom: 24, lineHeight: 1.5 }}>
-            Faça login pra ter seu perfil, ELO e aparecer no ranking. Ranqueamentos separados por versão (2002 / UM).
+            Faça login pra ter seu perfil, ELO e aparecer no ranking. Ranqueamentos separados por versão (2002 · UM · XV).
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1161,15 +1161,15 @@ function Header({ playerCount, matchCount, liveCount, currentUser, onLogout, onP
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, marginBottom: 4, flexWrap: 'wrap' }}>
             <span style={{ width: isMobile ? 20 : 28, height: isMobile ? 20 : 28, background: C.red, transform: 'rotate(45deg)', flexShrink: 0 }} />
-            <span style={{ fontFamily: FONTS.mono, fontSize: isMobile ? 9 : 11, color: C.muted, letterSpacing: isMobile ? '0.1em' : '0.2em' }}>// ARENA BNOSTLE · LIGA OFICIAL</span>
+            <span style={{ fontFamily: FONTS.mono, fontSize: isMobile ? 9 : 11, color: C.muted, letterSpacing: isMobile ? '0.1em' : '0.2em' }}>// KOF 2002 · UM · XV · LIGA OFICIAL</span>
             {liveCount > 0 && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONTS.mono, fontSize: 10, color: '#fff', background: C.red, padding: '3px 8px', letterSpacing: '0.15em' }}>
                 <span style={{ width: 6, height: 6, background: '#fff', borderRadius: '50%', animation: 'kof-pulse 1s infinite' }} />{liveCount} AO VIVO
               </span>
             )}
           </div>
-          <h1 style={{ fontFamily: FONTS.display, fontSize: isMobile ? 'clamp(28px, 9vw, 44px)' : 'clamp(40px, 7vw, 76px)', letterSpacing: '0.02em', lineHeight: 0.9, margin: 0, color: C.text, wordBreak: 'break-word' }}>
-            KING OF FIGHTERS <span style={{ color: C.red }}>2002/UM</span>
+          <h1 style={{ fontFamily: FONTS.display, fontSize: isMobile ? 'clamp(36px, 11vw, 52px)' : 'clamp(48px, 8vw, 88px)', letterSpacing: '0.02em', lineHeight: 0.9, margin: 0, color: C.text, wordBreak: 'break-word' }}>
+            ARENA <span style={{ color: C.red }}>BNOSTLE</span>
           </h1>
           {!isMobile && (
             <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 8, letterSpacing: '0.04em' }}>
@@ -2630,7 +2630,7 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
         </>
       )}
 
-      {showShare && <ShareModal url={shareUrl} title={`${hunter.tag} — ARENA BNOSTLE · KOF 2002/UM`} onClose={() => setShowShare(false)} />}
+      {showShare && <ShareModal url={shareUrl} title={`${hunter.tag} — ARENA BNOSTLE`} onClose={() => setShowShare(false)} />}
     </div>
   );
 }
@@ -3202,13 +3202,28 @@ function AdminScheduleForm({ players, ratingsByVersion, onSchedule }) {
   return (
     <Panel title="AGENDAR NOVO DUELO" accent={C.purple}>
       <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-        <div>
+        <div style={{ gridColumn: '1 / -1' }}>
           <label style={lbl}>VERSÃO DO JOGO</label>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
             {VERSION_IDS.map((v) => (
               <button key={v} type="button" onClick={() => setVersion(v)}
-                style={{ flex: 1, background: version === v ? VERSIONS[v].color : 'transparent', color: version === v ? '#0A0A0A' : VERSIONS[v].color, border: `1px solid ${VERSIONS[v].color}`, padding: '10px', fontFamily: FONTS.display, fontSize: 14, cursor: 'pointer', letterSpacing: '0.05em' }}>
-                {VERSIONS[v].fullLabel}
+                style={{
+                  background: version === v ? VERSIONS[v].color : 'transparent',
+                  color: version === v ? '#0A0A0A' : VERSIONS[v].color,
+                  border: `1px solid ${VERSIONS[v].color}`,
+                  padding: '12px 8px',
+                  fontFamily: FONTS.display,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  letterSpacing: '0.05em',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 2,
+                  transition: 'all 0.15s',
+                }}>
+                <span style={{ fontSize: 18, letterSpacing: '0.08em' }}>{VERSIONS[v].label}</span>
+                <span style={{ fontFamily: FONTS.mono, fontSize: 9, opacity: 0.85, letterSpacing: '0.1em' }}>{VERSIONS[v].subtitle.toUpperCase()}</span>
               </button>
             ))}
           </div>
@@ -3508,12 +3523,13 @@ function AdminVodEditor({ match, playerById, onUpdate, onDelete, onReopen }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// VIEW: RANKING (LADO A LADO 2002 / UM)
+// VIEW: RANKING (com abas por versão)
 // ═══════════════════════════════════════════════════════════
 function RankingView({ players, matches, mode, onOpenHunter }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
+  const [activeVersion, setActiveVersion] = useState('2002');
   const isAnnual = mode === 'anual';
   const years = useMemo(() => {
     const ys = new Set([now.getFullYear()]);
@@ -3543,11 +3559,32 @@ function RankingView({ players, matches, mode, onOpenHunter }) {
         </div>
       </Panel>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 20 }}>
-        {VERSION_IDS.map((v) => (
-          <RankingTable key={v} version={v} players={players} matches={matches} year={year} month={month} isAnnual={isAnnual} onOpenHunter={onOpenHunter} />
-        ))}
+      {/* Tabs de versão */}
+      <div style={{ display: 'flex', gap: 0, background: C.elevated, border: `1px solid ${C.border}`, padding: 0, overflowX: 'auto' }}>
+        {VERSION_IDS.map((v) => {
+          const ver = VERSIONS[v];
+          const isActive = activeVersion === v;
+          return (
+            <button key={v} onClick={() => setActiveVersion(v)}
+              style={{
+                flex: 1, minWidth: 100, background: isActive ? ver.color : 'transparent',
+                color: isActive ? '#0A0A0A' : ver.color,
+                border: 'none', borderRight: `1px solid ${C.border}`,
+                padding: '14px 16px', fontFamily: FONTS.display, fontSize: 16,
+                letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap',
+                transition: 'all 0.15s',
+              }}>
+              {ver.label}
+              <span style={{ fontFamily: FONTS.mono, fontSize: 9, opacity: 0.8, marginLeft: 6, letterSpacing: '0.1em' }}>
+                {ver.subtitle.toUpperCase()}
+              </span>
+            </button>
+          );
+        })}
       </div>
+
+      {/* Tabela da versão ativa */}
+      <RankingTable version={activeVersion} players={players} matches={matches} year={year} month={month} isAnnual={isAnnual} onOpenHunter={onOpenHunter} />
     </div>
   );
 }
@@ -4269,7 +4306,7 @@ function Footer({ onDonate }) {
   return (
     <div style={{ borderTop: `1px solid ${C.border}`, padding: '20px 24px', marginTop: 40 }}>
       <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.dim, letterSpacing: '0.15em' }}>// ARENA BNOSTLE · KOF 2002/UM · LIGA OFICIAL</span>
+        <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.dim, letterSpacing: '0.15em' }}>// ARENA BNOSTLE · KOF 2002 · UM · XV · LIGA OFICIAL</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {PIX_CONFIG.enabled && onDonate && (
             <button onClick={onDonate}
