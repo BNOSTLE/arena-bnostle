@@ -23,6 +23,7 @@ function profileFromDb(p) {
     platform: p.platform,
     mains2002: p.mains_2002 || [],
     mainsUm: p.mains_um || [],
+    mainsXv: p.mains_xv || [],
     twitch: p.twitch,
     youtube: p.youtube,
     discord: p.discord,
@@ -103,6 +104,7 @@ export async function updateMyProfile(userId, patch) {
   if (patch.platform !== undefined) dbPatch.platform = patch.platform
   if (patch.mains2002 !== undefined) dbPatch.mains_2002 = patch.mains2002
   if (patch.mainsUm !== undefined) dbPatch.mains_um = patch.mainsUm
+  if (patch.mainsXv !== undefined) dbPatch.mains_xv = patch.mainsXv
   if (patch.twitch !== undefined) dbPatch.twitch = patch.twitch
   if (patch.youtube !== undefined) dbPatch.youtube = patch.youtube
   if (patch.discord !== undefined) dbPatch.discord = patch.discord

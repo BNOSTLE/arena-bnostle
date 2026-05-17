@@ -82,10 +82,11 @@ function useIsMobile() {
 
 // ─── VERSÕES DO JOGO ────────────────────────────────────────
 const VERSIONS = {
-  '2002': { id: '2002', label: '2002', subtitle: 'Clássica', color: C.red,  fullLabel: 'KOF 2002 (Clássica)' },
-  'um':   { id: 'um',   label: 'UM',   subtitle: 'Steam', color: C.cyan, fullLabel: 'KOF 2002 UM (Steam)' },
+  '2002': { id: '2002', label: '2002', subtitle: 'Clássica',       color: C.red,    fullLabel: 'KOF 2002 (Clássica)' },
+  'um':   { id: 'um',   label: 'UM',   subtitle: 'Steam',          color: C.cyan,   fullLabel: 'KOF 2002 UM (Steam)' },
+  'xv':   { id: 'xv',   label: 'XV',   subtitle: 'Multi-plataforma', color: C.purple, fullLabel: 'KOF XV (PS/Xbox/Switch/Steam)' },
 };
-const VERSION_IDS = ['2002', 'um'];
+const VERSION_IDS = ['2002', 'um', 'xv'];
 
 function VersionBadge({ version, size = 'md' }) {
   const v = VERSIONS[version];
@@ -152,6 +153,51 @@ const KOF_CHARACTERS = [
   // UM extras
   'Geese Howard', 'Mr. Karate', 'Iori (Flames)', 'EX Kyo', 'EX Iori',
 ];
+
+// Roster KOF XV (base game + DLC)
+const KOF_CHARACTERS_XV = [
+  // Hero Team
+  'Shun\'ei', 'Meitenkun', 'Benimaru Nikaido',
+  // K\' Team
+  'K\'', 'Maxima', 'Whip',
+  // Yagami Team
+  'Iori Yagami', 'Mature', 'Vice',
+  // Fatal Fury Team
+  'Terry Bogard', 'Andy Bogard', 'Joe Higashi',
+  // Art of Fighting Team
+  'Ryo Sakazaki', 'Robert Garcia', 'King',
+  // Ikari Team
+  'Leona Heidern', 'Ralf Jones', 'Clark Still',
+  // Kim Team
+  'Kim Kaphwan', 'Gang-il', 'Dolores',
+  // Super Heroine Team
+  'Athena Asamiya', 'Mai Shiranui', 'Yuri Sakazaki',
+  // Rival Team
+  'Ash Crimson', 'Elisabeth Blanctorche', 'Kukri',
+  // Sacred Treasures Team
+  'Kyo Kusanagi', 'Iori Yagami (Orochinagi)', 'Chizuru Kagura',
+  // Krohnen Team
+  'Krohnen', 'Angel', 'Isla',
+  // Secret Agent / Sacred Guardian
+  'Blue Mary', 'Vanessa', 'Luong',
+  // Awakened Orochi Team
+  'Yashiro Nanakase', 'Shermie', 'Chris',
+  // GAROU Team (DLC)
+  'Rock Howard', 'B. Jenet', 'Gato',
+  // Samurai Shodown (DLC)
+  'Haohmaru', 'Nakoruru', 'Darli Dagger',
+  // SF VI Crossover (DLC)
+  'Geese Howard', 'Billy Kane', 'Ryuji Yamazaki',
+  // Boss / Unlock
+  'Omega Rugal', 'Goenitz', 'Verse', 'Re Kukri',
+  // South Town Team (DLC)
+  'Heidern', 'Najd', 'Sylvie Paula Paula',
+];
+
+function getCharactersForVersion(version) {
+  if (version === 'xv') return KOF_CHARACTERS_XV;
+  return KOF_CHARACTERS;
+}
 
 function getRank(elo) {
   for (let i = RANKS.length - 1; i >= 0; i--) if (elo >= RANKS[i].min) return RANKS[i];
@@ -1127,7 +1173,7 @@ function Header({ playerCount, matchCount, liveCount, currentUser, onLogout, onP
           </h1>
           {!isMobile && (
             <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 8, letterSpacing: '0.04em' }}>
-              agenda · transmissões · rankings elo separados (2002 · um) · campeonato anual
+              agenda · transmissões · rankings elo separados (2002 · um · xv) · campeonato anual
             </div>
           )}
         </div>
@@ -1732,12 +1778,13 @@ function VersionEloCell({ version, elo, w, l }) {
 }
 
 // ─── CHARACTER PICKER (mains do perfil) ─────────────────────
-function CharacterPicker({ selected, onChange, max = 3 }) {
+function CharacterPicker({ selected, onChange, max = 3, version }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const characterList = getCharactersForVersion(version);
   const filtered = useMemo(() =>
-    KOF_CHARACTERS.filter((c) => c.toLowerCase().includes(search.toLowerCase().trim())),
-  [search]);
+    characterList.filter((c) => c.toLowerCase().includes(search.toLowerCase().trim())),
+  [search, characterList]);
 
   const toggle = (char) => {
     if (selected.includes(char)) {
@@ -2131,6 +2178,7 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
     platform: hunter.platform || '',
     mains2002: hunter.mains2002 || [],
     mainsUm: hunter.mainsUm || [],
+    mainsXv: hunter.mainsXv || [],
     twitch: hunter.twitch || '',
     youtube: hunter.youtube || '',
     discord: hunter.discord || '',
@@ -2229,6 +2277,7 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
       platform: draft.platform.trim() || null,
       mains2002: draft.mains2002.length ? draft.mains2002 : null,
       mainsUm: draft.mainsUm.length ? draft.mainsUm : null,
+      mainsXv: draft.mainsXv.length ? draft.mainsXv : null,
       twitch: draft.twitch.trim() || null,
       youtube: draft.youtube.trim() || null,
       discord: draft.discord.trim() || null,
@@ -2299,6 +2348,9 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
               <div><label style={lbl}>MAINS NO 2002 UM (STEAM) — ATÉ 3</label>
                 <CharacterPicker selected={draft.mainsUm} onChange={(arr) => setDraft((d) => ({ ...d, mainsUm: arr }))} max={3} />
               </div>
+              <div><label style={lbl}>MAINS NO KOF XV — ATÉ 3</label>
+                <CharacterPicker selected={draft.mainsXv} onChange={(arr) => setDraft((d) => ({ ...d, mainsXv: arr }))} max={3} version="xv" />
+              </div>
 
               <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.purple}`, padding: 12, marginBottom: 10 }}>
                 <div style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.purple, letterSpacing: '0.15em', marginBottom: 8 }}>📸 FOTO AUTOMÁTICA (FIGHTCADE / GRAVATAR)</div>
@@ -2336,7 +2388,7 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
                 <Btn variant="ghost" onClick={() => { setDraft({
                   tag: hunter.tag, name: hunter.name, bio: hunter.bio || '', avatarUrl: hunter.avatarUrl || '',
                   city: hunter.city || '', platform: hunter.platform || '',
-                  mains2002: hunter.mains2002 || [], mainsUm: hunter.mainsUm || [],
+                  mains2002: hunter.mains2002 || [], mainsUm: hunter.mainsUm || [], mainsXv: hunter.mainsXv || [],
                   twitch: hunter.twitch || '', youtube: hunter.youtube || '', discord: hunter.discord || '',
                   fightcadeEmail: hunter.fightcadeEmail || '',
                 }); setEditing(false); }}>CANCELAR</Btn>
@@ -2353,7 +2405,7 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
             {hunter.bio && <div style={{ fontFamily: FONTS.body, fontSize: 13, color: C.muted, marginTop: 8, fontStyle: 'italic' }}>"{hunter.bio}"</div>}
 
             {/* Metadados: cidade, plataforma, mains */}
-            {(hunter.city || hunter.platform || (hunter.mains2002 && hunter.mains2002.length) || (hunter.mainsUm && hunter.mainsUm.length)) && (
+            {(hunter.city || hunter.platform || (hunter.mains2002 && hunter.mains2002.length) || (hunter.mainsUm && hunter.mainsUm.length) || (hunter.mainsXv && hunter.mainsXv.length)) && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
                 {hunter.city && (
                   <span style={{ fontFamily: FONTS.mono, fontSize: 11, color: C.text, background: C.bg, border: `1px solid ${C.border}`, padding: '3px 8px', letterSpacing: '0.05em' }}>
@@ -2385,6 +2437,16 @@ function HunterProfileView({ hunter, isOwn, players, matches, ratingsByVersion, 
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                   {hunter.mainsUm.map((c) => (
                     <span key={c} style={{ fontFamily: FONTS.body, fontSize: 11, color: C.cyan, border: `1px solid ${C.cyan}`, padding: '2px 8px' }}>{c}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {hunter.mainsXv && hunter.mainsXv.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                <span style={{ fontFamily: FONTS.mono, fontSize: 10, color: C.purple, letterSpacing: '0.15em' }}>MAINS XV:</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                  {hunter.mainsXv.map((c) => (
+                    <span key={c} style={{ fontFamily: FONTS.body, fontSize: 11, color: C.purple, border: `1px solid ${C.purple}`, padding: '2px 8px' }}>{c}</span>
                   ))}
                 </div>
               </div>
